@@ -10,6 +10,7 @@ const titles = {
   '/internships': { title: 'Internships', breadcrumb: 'CareerPilot / Internships' },
   '/skills': { title: 'My Skills', breadcrumb: 'CareerPilot / Skills' },
   '/profile': { title: 'My Profile', breadcrumb: 'CareerPilot / Profile' },
+  '/account-settings': { title: 'Account Settings', breadcrumb: 'CareerPilot / Account Settings' },
 }
 
 export default function DashboardLayout() {

@@ -9,6 +9,8 @@ import {
   X,
 } from 'lucide-react'
 import { navItems, studentProfile } from '../../data/demoData'
+import { useAuth } from '../../context/AuthContext'
+import { getDisplayName } from '../../utils/identity'
 import Avatar from '../ui/Avatar'
 
 const icons = {
@@ -20,7 +22,24 @@ const icons = {
   User,
 }
 
+function IdentitySkeleton() {
+  return (
+    <div className="flex min-w-0 items-center gap-3" aria-label="Loading account identity">
+      <div className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-slate-700/70" />
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="h-3 w-24 animate-pulse rounded bg-slate-700/70" />
+        <div className="h-2.5 w-32 animate-pulse rounded bg-slate-800" />
+      </div>
+    </div>
+  )
+}
+
 export default function Sidebar({ open, onClose }) {
+  const { user, profile, loading, profileLoading, isDemoMode } = useAuth()
+  const identityLoading = !isDemoMode && (loading || profileLoading)
+  const name = isDemoMode ? studentProfile.name : getDisplayName(user, profile)
+  const branch = isDemoMode ? studentProfile.branch : profile?.branch
+
   return (
     <>
       <div
@@ -39,15 +58,13 @@ export default function Sidebar({ open, onClose }) {
         <div className="flex items-center justify-between border-b border-slate-800 px-5 py-5">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 shadow-[0_0_24px_rgba(139,92,246,0.35)]">
-              <span className="font-[family-name:var(--font-display)] text-sm font-bold text-white">
-                CP
-              </span>
+              <span className="font-[family-name:var(--font-display)] text-sm font-bold text-white">CP</span>
             </div>
             <div>
               <p className="font-[family-name:var(--font-display)] text-lg font-semibold tracking-tight text-white">
                 CareerPilot
               </p>
-              <p className="text-xs text-slate-400">GNDEC · Demo UI</p>
+              <p className="text-xs text-slate-400">GNDEC · {isDemoMode ? 'Demo UI' : 'Student portal'}</p>
             </div>
           </div>
           <button
@@ -84,12 +101,18 @@ export default function Sidebar({ open, onClose }) {
         </nav>
 
         <div className="border-t border-slate-800 p-4">
-          <div className="flex items-center gap-3 rounded-xl border border-slate-800 bg-[#10182A] p-3">
-            <Avatar name={studentProfile.name} size="sm" />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-slate-100">{studentProfile.name}</p>
-              <p className="truncate text-xs text-slate-400">{studentProfile.branch}</p>
-            </div>
+          <div className="rounded-xl border border-slate-800 bg-[#10182A] p-3">
+            {identityLoading ? (
+              <IdentitySkeleton />
+            ) : (
+              <div className="flex items-center gap-3">
+                <Avatar name={name} size="sm" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-slate-100">{name}</p>
+                  <p className="truncate text-xs text-slate-400">{branch || 'Student account'}</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </aside>

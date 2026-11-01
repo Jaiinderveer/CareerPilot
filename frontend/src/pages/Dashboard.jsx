@@ -3,6 +3,8 @@ import { ArrowRight, Briefcase, Map, Sparkles, Target } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
 import ProgressBar from '../components/ui/ProgressBar'
+import { useAuth } from '../context/AuthContext'
+import { getDisplayName } from '../utils/identity'
 import {
   dashboardStats,
   internships,
@@ -41,14 +43,23 @@ const statCards = [
 ]
 
 export default function Dashboard() {
+  const { user, profile, loading, profileLoading, isDemoMode } = useAuth()
+  const identityLoading = !isDemoMode && (loading || profileLoading)
+  const name = isDemoMode ? studentProfile.name : getDisplayName(user, profile)
+  const firstName = name.split(' ')[0]
+
   return (
     <div className="space-y-6">
       <Card className="overflow-hidden p-6" hover={false}>
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <Badge tone="secondary">Demo data</Badge>
+            {isDemoMode && <Badge tone="secondary" className="mb-3">Demo data</Badge>}
             <h2 className="mt-3 font-[family-name:var(--font-display)] text-2xl font-semibold text-white md:text-3xl">
-              Welcome back, {studentProfile.name.split(' ')[0]}
+              {identityLoading ? (
+                <span className="inline-block h-8 w-56 animate-pulse rounded bg-slate-700/70 align-middle" aria-label="Loading account identity" />
+              ) : (
+                <>Welcome back, {firstName}</>
+              )}
             </h2>
             <p className="mt-2 max-w-2xl text-sm text-slate-400 md:text-base">
               Track placement prep across roadmaps, skills, GNDEC-focused recruiter intel, and
