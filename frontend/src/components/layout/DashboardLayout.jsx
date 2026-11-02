@@ -16,7 +16,9 @@ const titles = {
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
-  const meta = titles[location.pathname] || { title: 'CareerPilot', breadcrumb: 'CareerPilot' }
+  const meta = location.pathname.startsWith('/recruiters/')
+    ? titles['/recruiters']
+    : titles[location.pathname] || { title: 'CareerPilot', breadcrumb: 'CareerPilot' }
 
   return (
     <div className="flex min-h-screen">

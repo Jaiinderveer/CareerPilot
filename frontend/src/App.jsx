@@ -52,6 +52,7 @@ export default function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/roadmaps" element={<Roadmaps />} />
             <Route path="/recruiters" element={<Recruiters />} />
+            <Route path="/recruiters/:recruiterId" element={<Recruiters />} />
             <Route path="/internships" element={<Internships />} />
             <Route path="/skills" element={<Skills />} />
             <Route path="/profile" element={<Profile />} />
