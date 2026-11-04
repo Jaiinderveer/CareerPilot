@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { getLoginRedirectTo } from '../utils/authRedirect'
 import { useAuth } from '../context/AuthContext'
 
 function AuthPageLoading() {
@@ -48,7 +49,7 @@ export default function Login() {
 
     setOauthLoading(true)
     const result = await signInWithOAuth('google', {
-      redirectTo: `${window.location.origin}/dashboard`,
+      redirectTo: getLoginRedirectTo(),
     })
 
     if (result?.error) {

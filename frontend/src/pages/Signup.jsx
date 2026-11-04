@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { getSignupRedirectTo } from '../utils/authRedirect'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../services/supabase'
 
@@ -105,7 +106,7 @@ export default function Signup() {
 
     setOauthLoading(true)
     const result = await signInWithOAuth('google', {
-      redirectTo: `${window.location.origin}/dashboard`,
+      redirectTo: getSignupRedirectTo(),
     })
 
     if (result?.error) {

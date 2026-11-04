@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { getSignupRedirectTo, getOAuthRedirectTo } from '../utils/authRedirect'
 
 const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim()
 const supabasePublishableKey = String(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '').trim()
@@ -128,7 +129,7 @@ export async function signUp(email, password, profileData) {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/dashboard`,
+        emailRedirectTo: getSignupRedirectTo(),
         data: metadata,
       },
     })
@@ -213,7 +214,7 @@ export async function signInWithOAuth(provider = 'google', options = {}) {
     const response = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: options.redirectTo ?? `${window.location.origin}/login`,
+        redirectTo: options.redirectTo ?? getOAuthRedirectTo(),
         ...options,
       },
     })
