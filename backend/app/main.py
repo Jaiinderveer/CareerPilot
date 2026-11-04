@@ -14,12 +14,14 @@ app = FastAPI(
     version='0.1.0',
 )
 
+# CORS: allow the production frontend and localhost for dev
+# Do NOT use wildcard origins with credentials enabled
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_origin],
+    allow_origins=settings.allowed_origins,
     allow_credentials=True,
-    allow_methods=['*'],
-    allow_headers=['*'],
+    allow_methods=['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allow_headers=['Authorization', 'Content-Type'],
 )
 
 app.include_router(health.router)

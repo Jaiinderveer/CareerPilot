@@ -31,6 +31,14 @@ class Settings(BaseSettings):
     def is_supabase_configured(self) -> bool:
         return bool(self.supabase_url and self.supabase_publishable_key)
 
+    @property
+    def allowed_origins(self) -> list[str]:
+        """Return the list of allowed frontend origins.
+
+        FRONTEND_ORIGIN may be a single origin or a comma-separated list.
+        """
+        return [origin.strip() for origin in self.frontend_origin.split(',') if origin.strip()]
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
