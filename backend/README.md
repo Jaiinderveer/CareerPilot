@@ -1,91 +1,98 @@
 # CareerPilot Backend
 
-## Overview
-
-This is the FastAPI backend for the CareerPilot platform, designed to work with the React frontend.
+FastAPI API for authenticated CareerPilot features. The service verifies Supabase access tokens and forwards the signed-in user's JWT to Supabase PostgREST for user-scoped data access.
 
 ## Architecture
 
-- **FastAPI** backend service
-- **Supabase** for authentication and database access
-- **PostgreSQL** database with Row Level Security (RLS)
-- **Pydantic** for data validation
-- **FastAPI** built-in documentation (Swagger at /docs, ReDoc at /redoc)
-- **CORS** configured for frontend development
+- FastAPI backend service
+- Supabase Auth for identity and access tokens
+- PostgreSQL/PostgREST for persistence
+- Pydantic for request and response validation
+- CORS restricted to the configured frontend origin
+- No service-role key required
 
 ## Prerequisites
 
 - Python 3.10+
 - Python virtual environment
-- Supabase project with Auth and PostgreSQL
-- Node.js and npm for frontend development (separate from this backend)
+- Supabase project with Auth, PostgreSQL, and the reviewed migrations applied
+- Node.js and npm for the frontend
 
 ## Setup
 
-### 1. Create Virtual Environment
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-### 2. Install Dependencies
-```bash
+cd backend
+python -m venv .venv
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+# macOS/Linux
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Configure Environment
-Copy `.env.example` to `.env`:
-```bash
-cp .env.example .env
-```
+Copy `.env.example` to `.env` and set:
 
-### 3. Configure `.env` file with your Supabase credentials:
 ```env
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+SUPABASE_PUBLISHABLE_KEY=your-anon-or-publishable-key
 FRONTEND_ORIGIN=http://localhost:5173
 ```
 
-### 3. Start Development Server
+`SUPABASE_ANON_KEY` is accepted as a legacy fallback by the configuration, but new deployments should use `SUPABASE_PUBLISHABLE_KEY`. Never add a service-role key to this repository or the frontend.
+
+## Run
+
 ```bash
 uvicorn app.main:app --reload
 ```
 
-### 4. Access Documentation
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+- API: `http://localhost:8000`
+- Health check: `GET /health`
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
 
-## API Endpoints
+## API endpoints
 
-### Health Check
-- `GET /health` - Returns status check
+All `/api/*` endpoints require `Authorization: Bearer <supabase-access-token>`.
 
-### User Information
-- `GET /api/me` - Returns verified user identity (ID, email, full_name)
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/me` | Return verified user identity |
+| `GET` | `/api/me/profile` | Return the current user's profile |
+| `PATCH` | `/api/me/profile` | Apply a validated partial update to the current user's profile |
+| `GET` | `/api/recruiters` | Return approved career-resource entries |
+| `GET` | `/api/recruiters/{id}` | Return one approved career-resource entry |
+| `GET` | `/api/roles` | Return approved roles/experiences data |
 
-### Profile Endpoints
-
-- `GET /api/me/profile` - Get current user's profile data
-- `PATCH /api/me/profile` - Update current user's profile (partial updates)
-
-## Authentication
-
-All protected endpoints require a valid Bearer token in the Authorization header. The token is verified against Supabase Auth by making a request to `/auth/v1/user` with the token and Supabase publishable key.
+Profile updates are intentionally scoped to the verified token subject; the client cannot choose another profile ID.
 
 ## Testing
 
-Tests are located in the `tests/` directory and can be run with:
+Run from the `backend` directory:
+
 ```bash
 pytest
 ```
 
-## Security Considerations
+The tests use fakes for upstream Supabase calls and do not execute SQL or modify a production project.
 
-- All requests are scoped to the authenticated user's JWT
-- Supabase RLS policies enforce database access restrictions
-- No service-role keys are used
-- No sensitive data is logged or exposed in API responses
+## Database migrations
 
-## Deployment
+Migrations live in `../database/migrations/`. They are ordered SQL files for manual review and execution in the intended Supabase project. The backend does not execute migrations automatically.
 
-This backend is designed to be deployed to Render or similar PaaS platforms.
+## Deployment checklist
+
+1. Set `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and the exact deployed `FRONTEND_ORIGIN`.
+2. Use a managed secret store for environment variables.
+3. Run `pytest` in CI before deployment.
+4. Confirm the deployed service returns success from `/health`.
+5. Confirm the frontend's `VITE_API_URL` points to this service.
+6. Configure Supabase Auth redirect URLs and Google OAuth for the deployed frontend.
+7. Verify RLS and reviewed migrations in staging before production.
+
+## Security considerations
+
+- Authenticated requests are verified against Supabase Auth.
+- PostgREST requests use the current user's JWT, preserving user-scoped RLS behavior.
+- Passwords are handled only by Supabase Auth and are never logged or stored by this service.
+- Error responses intentionally avoid returning upstream credentials or sensitive details.

@@ -3,7 +3,7 @@ import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
 import Avatar from '../components/ui/Avatar'
 import { useAuth } from '../context/AuthContext'
-import { supabase } from '../services/supabase'
+import { apiRequest } from '../services/api'
 import { studentProfile } from '../data/demoData'
 import { getDisplayName } from '../utils/identity'
 
@@ -32,9 +32,8 @@ function toForm(profile, user) {
   }
 }
 
-function toProfileRecord(form, userId, skillsInput, careerInterestsInput) {
+function toProfileRecord(form, skillsInput, careerInterestsInput) {
   return {
-    id: userId,
     full_name: form.name.trim(),
     college: form.college.trim(),
     branch: form.branch.trim(),
@@ -55,6 +54,7 @@ export default function Profile() {
     profileError,
     isConfigured,
     isDemoMode,
+    session,
     updateProfile,
   } = useAuth()
   const emptyForm = {
@@ -94,7 +94,7 @@ export default function Profile() {
 
     if (authLoading || profileLoading || !isConfigured) return
 
-    if (!user?.id || !supabase) {
+    if (!user?.id || !session?.access_token) {
       setError('No authenticated user is available for this profile.')
       setLoading(false)
       return
@@ -106,7 +106,7 @@ export default function Profile() {
     if (!skillsInputFocusedRef.current) setSkillsInput(nextForm.skills.join(', '))
     if (!careerInterestsInputFocusedRef.current) setCareerInterestsInput(nextForm.careerInterests.join(', '))
     setLoading(false)
-  }, [authLoading, authProfile, isConfigured, isDemoMode, profileLoading, user])
+  }, [authLoading, authProfile, isConfigured, isDemoMode, profileLoading, session, user])
 
   useEffect(() => {
     if (profileError) setError(profileError.message || 'Failed to load your profile.')
@@ -130,15 +130,13 @@ export default function Profile() {
       return
     }
 
-    if (!user?.id || !supabase) {
+    if (!user?.id || !session?.access_token) {
       setError('You must be signed in to save a profile.')
       return
     }
 
     const graduationYear = form.graduationYear === '' ? null : Number(form.graduationYear)
     const cgpa = form.cgpa === '' ? null : Number(form.cgpa)
-    const skills = toList(skillsInput)
-    const careerInterests = toList(careerInterestsInput)
 
     if (graduationYear !== null && !Number.isInteger(graduationYear)) {
       setError('Graduation year must be a whole number.')
@@ -152,21 +150,19 @@ export default function Profile() {
     setSaving(true)
 
     try {
-      const record = toProfileRecord(form, user.id, skillsInput, careerInterestsInput)
-      const { data, error: saveError } = await supabase
-        .from('profiles')
-        .upsert(record, { onConflict: 'id' })
-        .select('id, full_name, college, branch, graduation_year, cgpa, location, skills, career_interests, created_at, updated_at')
-        .single()
-
-      if (saveError) throw saveError
+      const record = toProfileRecord(form, skillsInput, careerInterestsInput)
+      const data = await apiRequest('/api/me/profile', {
+        accessToken: session.access_token,
+        method: 'PATCH',
+        body: record,
+      })
 
       const nextForm = toForm(data, user)
       setForm(nextForm)
       setSavedForm(nextForm)
       setSkillsInput(nextForm.skills.join(', '))
       setCareerInterestsInput(nextForm.careerInterests.join(', '))
-      setSuccess('Profile saved to Supabase.')
+      setSuccess('Profile saved to CareerPilot.')
       updateProfile(data)
     } catch (saveError) {
       setError(saveError.message || 'Failed to save your profile.')
@@ -224,7 +220,7 @@ export default function Profile() {
               Edit profile
             </h3>
             <p className="mt-1 text-sm text-slate-400">
-              {isDemoMode ? 'Demo mode changes stay local to this session.' : 'Changes are saved to your authenticated Supabase profile.'}
+              {isDemoMode ? 'Demo mode changes stay local to this session.' : 'Changes are saved through the authenticated CareerPilot API.'}
             </p>
           </div>
           {success ? <Badge tone="success">{success}</Badge> : null}

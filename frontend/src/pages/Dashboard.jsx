@@ -9,7 +9,6 @@ import {
   dashboardStats,
   internships,
   recentActivity,
-  recruiters,
   roadmaps,
   skillOverview,
   studentProfile,
@@ -62,8 +61,8 @@ export default function Dashboard() {
               )}
             </h2>
             <p className="mt-2 max-w-2xl text-sm text-slate-400 md:text-base">
-              Track placement prep across roadmaps, skills, GNDEC-focused recruiter intel, and
-              internship discovery — frontend foundation only for this phase.
+              Track placement preparation across demo roadmaps, sample skills, career resources, and
+              sample internship discovery.
             </p>
           </div>
           <Link
@@ -158,28 +157,22 @@ export default function Dashboard() {
         <Card className="p-5">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="font-[family-name:var(--font-display)] text-lg font-semibold text-white">
-              Recommended recruiters
+              Career resources
             </h3>
             <Link to="/recruiters" className="text-sm text-cyan-300 hover:text-cyan-200">
               Directory
             </Link>
           </div>
-          <div className="space-y-3">
-            {recruiters.slice(0, 3).map((company) => (
-              <div
-                key={company.id}
-                className="flex items-center gap-3 rounded-xl border border-slate-800 bg-[#0B1020] p-3"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-500/15 text-sm font-semibold text-violet-300">
-                  {company.initials}
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-slate-100">{company.name}</p>
-                  <p className="truncate text-xs text-slate-400">{company.roles.join(' · ')}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+          <p className="text-sm leading-6 text-slate-400">
+            Browse official company career resources. These entries do not confirm GNDEC placement participation, current openings, or personalized recommendations.
+          </p>
+          <Link
+            to="/recruiters"
+            className="mt-4 inline-flex items-center gap-2 text-sm text-cyan-300 hover:text-cyan-200"
+          >
+            Open recruiter directory
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </Card>
       </div>
 

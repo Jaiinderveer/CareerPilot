@@ -6,10 +6,8 @@ import { roadmaps } from '../data/demoData'
 export default function Roadmaps() {
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-sm text-slate-400">
-          Four placement-focused tracks with sample progress. Content and AI generation come later.
-        </p>
+      <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm leading-6 text-amber-100">
+        <strong className="font-medium">Demo boundary:</strong> tracks, module counts, descriptions, and progress values are sample UI data. They are not personalized recommendations or verified placement requirements.
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">

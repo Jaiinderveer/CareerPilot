@@ -9,12 +9,18 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiRequest(path, { accessToken, signal } = {}) {
+export async function apiRequest(path, { accessToken, method = 'GET', body, signal } = {}) {
+  const headers = {
+    Accept: 'application/json',
+  }
+
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`
+  if (body !== undefined) headers['Content-Type'] = 'application/json'
+
   const response = await fetch(`${apiBaseUrl}${path}`, {
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
     signal,
   })
 
@@ -27,7 +33,7 @@ export async function apiRequest(path, { accessToken, signal } = {}) {
 
   if (!response.ok) {
     throw new ApiError(
-      payload?.detail || 'Unable to load career-resource data.',
+      payload?.detail || 'Unable to complete the API request.',
       response.status,
     )
   }

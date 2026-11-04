@@ -1,16 +1,12 @@
 import Card from '../components/ui/Card'
-import Badge from '../components/ui/Badge'
 import ProgressBar from '../components/ui/ProgressBar'
 import { skillCategories } from '../data/demoData'
 
 export default function Skills() {
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="muted">Demo scores</Badge>
-        <p className="text-sm text-slate-400">
-          Sample skill levels for UI only — not AI-assessed measurements.
-        </p>
+      <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm leading-6 text-amber-100">
+        <strong className="font-medium">Demo boundary:</strong> these scores are sample UI values only. They are not AI-assessed measurements, verified skill evidence, or hiring recommendations.
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

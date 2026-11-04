@@ -27,9 +27,9 @@ export default function Internships() {
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-slate-400">
-        Sample internship directory only — not live openings. Application links are placeholders.
-      </p>
+      <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm leading-6 text-amber-100">
+        <strong className="font-medium">Demo boundary:</strong> every listing on this page is sample data, not a live opening. Dates, eligibility, and application links are placeholders and must not be used as application guidance.
+      </div>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
         <SearchInput
@@ -98,7 +98,7 @@ export default function Internships() {
               <a
                 href={job.applyUrl}
                 className="mt-auto inline-flex items-center gap-2 self-start rounded-xl border border-slate-700 bg-[#0B1020] px-3 py-2 text-sm text-cyan-300 transition hover:border-cyan-500/40 hover:text-cyan-200"
-                onClick={(e) => e.preventDefault()}
+                onClick={(event) => event.preventDefault()}
               >
                 Application link (placeholder)
                 <ExternalLink className="h-3.5 w-3.5" />

@@ -10,6 +10,7 @@ import {
   signUp as supabaseSignUp,
   supabase,
 } from '../services/supabase'
+import { apiRequest } from '../services/api'
 
 const AuthContext = createContext(null)
 
@@ -31,6 +32,12 @@ export function AuthProvider({ children }) {
     }
 
     const userId = nextUser.id
+    if (!nextUser.access_token) {
+      setProfile(null)
+      setProfileLoading(false)
+      setProfileError(new Error('No authenticated access token is available.'))
+      return
+    }
     if (!force && loadedProfileUserIdRef.current === userId) return
     if (!force && profileRequestRef.current?.userId === userId) {
       return profileRequestRef.current.promise
@@ -42,45 +49,10 @@ export function AuthProvider({ children }) {
 
     const promise = (async () => {
       try {
-        const { data, error: queryError } = await supabase
-          .from('profiles')
-          .select('id, full_name, college, branch, graduation_year, cgpa, location, skills, career_interests, created_at, updated_at')
-          .eq('id', userId)
-          .maybeSingle()
-
-        if (queryError) throw queryError
-
-        if (!data) {
-          const fallbackName =
-            nextUser.user_metadata?.full_name?.trim() ||
-            nextUser.user_metadata?.name?.trim() ||
-            nextUser.email?.split('@')[0]?.trim() ||
-            'Student'
-          const { data: provisionedProfile, error: provisionError } = await supabase
-            .from('profiles')
-            .insert({ id: userId, full_name: fallbackName })
-            .select('id, full_name, college, branch, graduation_year, cgpa, location, skills, career_interests, created_at, updated_at')
-            .maybeSingle()
-
-          if (provisionError && provisionError.code !== '23505') throw provisionError
-
-          // If insert failed (e.g., 23505: duplicate), verify existing profile row
-          const { data: existingProfile, error: existingQueryError } = await supabase
-            .from('profiles')
-            .select('id, full_name, college, branch, graduation_year, cgpa, location, skills, career_interests, created_at, updated_at')
-            .eq('id', userId)
-            .maybeSingle()
-
-          if (existingQueryError) throw existingQueryError
-          if (existingProfile) {
-            setProfile(existingProfile)
-          } else {
-            // This should not happen, but ensure a fallback for safety
-            setProfile({ id: userId, full_name: fallbackName })
-          }
-        } else {
-          setProfile(data)
-        }
+        const data = await apiRequest('/api/me/profile', {
+          accessToken: nextUser.access_token,
+        })
+        setProfile(data)
         loadedProfileUserIdRef.current = userId
       } catch (queryError) {
         setProfile(null)
@@ -117,7 +89,7 @@ export function AuthProvider({ children }) {
       setSession(nextSession ?? null)
       setError(null)
       if (nextSession) {
-        void loadProfile(nextSession.user)
+        void loadProfile({ ...nextSession.user, access_token: nextSession.access_token })
       } else {
         loadedProfileUserIdRef.current = null
         profileRequestRef.current = null
@@ -136,7 +108,9 @@ export function AuthProvider({ children }) {
         setProfile(null)
       } else if (!receivedAuthEvent) {
         setSession(result.session)
-        if (result.session) await loadProfile(result.session.user)
+        if (result.session) {
+          await loadProfile({ ...result.session.user, access_token: result.session.access_token })
+        }
       }
 
       setLoading(false)
@@ -240,7 +214,10 @@ export function AuthProvider({ children }) {
         updatePassword,
         signOut,
         updateProfile,
-        refreshProfile: () => loadProfile(user, { force: true }),
+        refreshProfile: () => {
+          if (!session) return Promise.resolve()
+          return loadProfile({ ...user, access_token: session.access_token }, { force: true })
+        },
       }}
     >
       {children}
