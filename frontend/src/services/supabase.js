@@ -14,6 +14,7 @@ if (supabaseUrl && supabasePublishableKey) {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
+        flowType: 'pkce',
       },
     })
   } catch (error) {
