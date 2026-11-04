@@ -1,9 +1,13 @@
 """Shared pytest fixtures for backend tests."""
 
 from collections.abc import Iterator
+from pathlib import Path
+import sys
 
 import pytest
 from fastapi.testclient import TestClient
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.config import Settings, get_settings
 from app.core.security import AuthenticatedUser, get_current_user
