@@ -212,6 +212,58 @@ async def _create_turn(
     return _turn_response(row)
 
 
+def _question_is_eligible(question: dict[str, Any], interview: dict[str, Any]) -> bool:
+    """Accept generic bank rows or rows matching this interview's context."""
+
+    def matches(field: str) -> bool:
+        question_value = question.get(field)
+        interview_value = interview.get(field)
+        if question_value in (None, ''):
+            return True
+        if interview_value in (None, ''):
+            return False
+        return str(question_value).strip().casefold() == str(interview_value).strip().casefold()
+
+    return matches('company_id') and matches('role') and matches('round')
+
+
+def _question_specificity(question: dict[str, Any], interview: dict[str, Any]) -> int:
+    """Rank exact context matches ahead of otherwise eligible generic rows."""
+
+    return sum(
+        question.get(field) not in (None, '') and interview.get(field) not in (None, '')
+        for field in ('company_id', 'role', 'round')
+    )
+
+
+def _main_parent_id(turn: dict[str, Any], turns: list[dict[str, Any]]) -> UUID:
+    """Resolve legacy nested follow-ups to their root main-question turn."""
+
+    turn_by_id = {str(row.get('id')): row for row in turns if row.get('id')}
+    current = turn
+    visited: set[str] = set()
+    while current.get('is_follow_up') and current.get('parent_turn_id'):
+        parent_id = str(current['parent_turn_id'])
+        if parent_id in visited:
+            break
+        visited.add(parent_id)
+        parent = turn_by_id.get(parent_id)
+        if parent is None:
+            return UUID(parent_id)
+        current = parent
+    return UUID(str(current['id']))
+
+
+def _is_follow_up_for_parent(
+    turn: dict[str, Any],
+    parent_turn_id: UUID,
+    turns: list[dict[str, Any]],
+) -> bool:
+    if not turn.get('is_follow_up') or not turn.get('parent_turn_id'):
+        return False
+    return _main_parent_id(turn, turns) == parent_turn_id
+
+
 async def _next_question(
     interview: dict[str, Any],
     turns: list[dict[str, Any]],
@@ -219,22 +271,30 @@ async def _next_question(
 ) -> dict[str, Any] | None:
     params: dict[str, Any] = {
         'review_status': 'eq.reviewed',
-        'order': 'difficulty.asc,created_at.asc',
+        'order': 'difficulty.asc,created_at.asc,id.asc',
     }
-    if interview.get('role'):
-        params['role'] = f'eq.{interview["role"]}'
-    if interview.get('round'):
-        params['round'] = f'eq.{interview["round"]}'
     try:
         value = await supabase.get('question_bank', params=params)
     except SupabaseAPIError as error:
         _raise_database_error(error, 'question bank')
 
     asked_ids = {str(turn.get('question_id')) for turn in turns if turn.get('question_id')}
-    candidates = [row for row in _rows(value) if str(row.get('id')) not in asked_ids]
-    if not candidates:
-        return None
-    return await _question_with_rubric(UUID(str(candidates[0]['id'])), supabase)
+    candidates = [
+        row
+        for row in _rows(value)
+        if row.get('id')
+        and str(row['id']) not in asked_ids
+        and _question_is_eligible(row, interview)
+    ]
+    candidates.sort(key=lambda row: _question_specificity(row, interview), reverse=True)
+    for candidate in candidates:
+        try:
+            return await _question_with_rubric(UUID(str(candidate['id'])), supabase)
+        except HTTPException as error:
+            if error.status_code == 422:
+                continue
+            raise
+    return None
 
 
 async def _persist_evaluation(
@@ -488,14 +548,38 @@ async def start_interview(
     except AIServiceUnavailable as error:
         raise HTTPException(status_code=503, detail='AI service unavailable') from error
 
-    question_ids = plan.get('question_ids') or []
-    first_question_id = plan.get('first_question_id') or (question_ids[0] if question_ids else None)
-    if not first_question_id:
-        raise HTTPException(status_code=503, detail='AI planner returned no opening question')
-    try:
-        question = await _question_with_rubric(UUID(str(first_question_id)), supabase)
-    except ValueError as error:
-        raise HTTPException(status_code=422, detail='AI planner returned an invalid question ID') from error
+    if not isinstance(plan, dict):
+        plan = {}
+    raw_question_ids = plan.get('question_ids')
+    question_ids = raw_question_ids if isinstance(raw_question_ids, list) else []
+    planner_ids = [plan.get('first_question_id'), *question_ids]
+
+    question = None
+    for raw_question_id in planner_ids:
+        if not raw_question_id:
+            continue
+        try:
+            candidate_id = UUID(str(raw_question_id))
+        except (TypeError, ValueError, AttributeError):
+            continue
+        try:
+            question = await _question_with_rubric(candidate_id, supabase)
+        except HTTPException as error:
+            if error.status_code == 422:
+                continue
+            raise
+        if not _question_is_eligible(question, interview):
+            question = None
+            continue
+        break
+
+    if question is None:
+        question = await _next_question(interview, [], supabase)
+        if question is None:
+            raise HTTPException(
+                status_code=503,
+                detail='No eligible reviewed questions with rubrics are available in the question bank for this interview',
+            )
 
     try:
         existing_turns = await supabase.get(
@@ -563,6 +647,7 @@ async def submit_answer(
     interview = await _get_owned_interview(interview_id, current_user, supabase)
     if interview.get('status') != 'active':
         raise HTTPException(status_code=409, detail='Interview is not active')
+    admin_service = _require_admin(admin)
     turn = await _get_turn(interview_id, turn_id, supabase)
 
     try:
@@ -602,7 +687,6 @@ async def submit_answer(
         })
     except AIServiceUnavailable as error:
         raise HTTPException(status_code=503, detail='AI service unavailable') from error
-    admin_service = _require_admin(admin)
     evaluation = await _persist_evaluation(
         answer_id=answer_id,
         evaluation_data=evaluation_data,
@@ -622,15 +706,17 @@ async def submit_answer(
         ))
     except SupabaseAPIError as error:
         _raise_database_error(error, 'turn')
+    main_parent_id = _main_parent_id(turn, turns)
     follow_up_count = sum(
-        bool(row.get('is_follow_up')) and str(row.get('parent_turn_id')) == str(turn_id)
+        _is_follow_up_for_parent(row, main_parent_id, turns)
         for row in turns
     )
+    next_question = await _next_question(interview, turns, supabase)
     action = choose_next_action(
         transcript_text=answer.transcript_text,
         criterion_results=evaluation.criterion_results,
         follow_ups_for_parent=follow_up_count,
-        remaining_main_questions=bool(await _next_question(interview, turns, supabase)),
+        remaining_main_questions=next_question is not None,
     )
     next_turn: TurnResponse | None = None
     if action.action == 'probe':
@@ -652,24 +738,32 @@ async def submit_answer(
             rubric_snapshot=turn.get('rubric_snapshot') or {},
             supabase=supabase,
             is_follow_up=True,
-            parent_turn_id=turn_id,
+            parent_turn_id=main_parent_id,
             target_criterion_id=action.target_criterion_id,
         )
     elif action.action == 'select_question':
-        question = await _next_question(interview, turns, supabase)
-        if question is None:
+        if next_question is None:
             action = action.__class__(action='finish')
         else:
             next_turn = await _create_turn(
                 interview_id=interview_id,
                 sequence_num=len(turns) + 1,
-                question_id=UUID(str(question['id'])),
-                question_text=question['question_text'],
-                rubric_snapshot=rubric_snapshot_from_row(question),
+                question_id=UUID(str(next_question['id'])),
+                question_text=next_question['question_text'],
+                rubric_snapshot=rubric_snapshot_from_row(next_question),
                 supabase=supabase,
             )
     if action.action == 'clarify':
-        next_turn = _turn_response(turn)
+        next_turn = await _create_turn(
+            interview_id=interview_id,
+            sequence_num=len(turns) + 1,
+            question_text='Could you add a little more detail to your previous answer?',
+            rubric_snapshot=turn.get('rubric_snapshot') or {},
+            supabase=supabase,
+            is_follow_up=True,
+            parent_turn_id=main_parent_id,
+            target_criterion_id=action.target_criterion_id,
+        )
     if action.action == 'finish':
         return AnswerResponse(
             answer_id=answer_id,

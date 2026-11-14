@@ -42,12 +42,14 @@ def choose_next_action(
     """
 
     policy = policy or AdaptivePolicy()
-    if len(transcript_text.strip()) < policy.minimum_transcript_characters:
-        return NextAction(action='clarify')
-    if len(criterion_results) < policy.minimum_criteria_for_evaluation:
+    follow_up_available = follow_ups_for_parent < policy.max_follow_ups_per_main_question
+    if follow_up_available and (
+        len(transcript_text.strip()) < policy.minimum_transcript_characters
+        or len(criterion_results) < policy.minimum_criteria_for_evaluation
+    ):
         return NextAction(action='clarify')
 
-    if follow_ups_for_parent < policy.max_follow_ups_per_main_question:
+    if follow_up_available:
         for result in criterion_results:
             if _criterion_needs_probe(result):
                 return NextAction(action='probe', target_criterion_id=result.criterion_id)

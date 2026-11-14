@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowRight, Upload, AlertCircle, Loader2 } from 'lucide-react'
+import { ArrowRight, Upload, AlertCircle, Loader2, FlaskConical, Radio } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
 import { useAuth } from '../context/AuthContext'
 import {
+  INTERVIEW_MODES,
   fetchRecruiters,
   createInterview,
-  isInterviewCreationMocked,
 } from '../services/interviewService'
 
 const ROUNDS = ['Technical', 'HR', 'Design', 'System Design', 'Other']
@@ -16,6 +16,10 @@ const PRESET_DURATIONS = [15, 30, 45, 60]
 export default function InterviewSetup() {
   const navigate = useNavigate()
   const { session, loading: authLoading, isConfigured, isDemoMode } = useAuth()
+
+  // Explicit mode selector — default to DEMO for hackathon demonstration.
+  // Users can switch to LIVE when the backend AI service is available.
+  const [selectedMode, setSelectedMode] = useState(INTERVIEW_MODES.DEMO)
 
   const [recruiters, setRecruiters] = useState([])
   const [loadingRecruiters, setLoadingRecruiters] = useState(true)
@@ -40,9 +44,9 @@ export default function InterviewSetup() {
     let isMounted = true
 
     const loadRecruiters = async () => {
-      // P1 convention: skip live API call in demo mode or when Supabase not configured
-      // Matches Recruiters.jsx lines 326-341 behavior
-      if (authLoading || !isConfigured || isDemoMode || !session?.access_token) {
+      // P1 convention: skip live API call in demo mode, explicit DEMO selection,
+      // or when Supabase not configured. Matches Recruiters.jsx lines 326-341 behavior.
+      if (authLoading || !isConfigured || isDemoMode || selectedMode === INTERVIEW_MODES.DEMO || !session?.access_token) {
         setLoadingRecruiters(false)
         return
       }
@@ -69,7 +73,7 @@ export default function InterviewSetup() {
     return () => {
       isMounted = false
     }
-  }, [session?.access_token, isConfigured, isDemoMode, authLoading])
+  }, [session?.access_token, isConfigured, isDemoMode, authLoading, selectedMode])
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -137,7 +141,10 @@ export default function InterviewSetup() {
         resume_url: formData.resume_url || null,
       }
 
-      const result = await createInterview(payload, session?.access_token)
+      const result = await createInterview(payload, {
+        mode: selectedMode,
+        accessToken: session?.access_token,
+      })
 
       // Mock results are explicitly tagged so they are never mistaken for real sessions
       if (result.__mock) {
@@ -156,7 +163,7 @@ export default function InterviewSetup() {
     }
   }
 
-  const showMockBanner = isInterviewCreationMocked()
+  const showMockBanner = selectedMode === INTERVIEW_MODES.DEMO
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -171,10 +178,10 @@ export default function InterviewSetup() {
       </div>
 
       {showMockBanner && (
-        <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-300">
-          <AlertCircle className="h-5 w-5 shrink-0 text-amber-400" />
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-300">
+          <AlertCircle className="h-5 w-5 shrink-0 text-amber-400 mt-0.5" />
           <p>
-            Mock mode active — session will not be persisted until POST /api/interviews is available (P3).
+            <span className="font-semibold">Simulated session</span> — scores and feedback are pre-scripted for demonstration purposes and do not reflect real AI evaluation. No data is persisted.
           </p>
         </div>
       )}
@@ -188,6 +195,53 @@ export default function InterviewSetup() {
 
       <Card className="p-6 md:p-8" hover={false}>
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Mode Selector */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-200">
+              Interview Mode
+            </label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setSelectedMode(INTERVIEW_MODES.DEMO)}
+                className={`relative flex flex-col gap-1.5 rounded-xl border p-4 text-left transition ${
+                  selectedMode === INTERVIEW_MODES.DEMO
+                    ? 'border-amber-500/60 bg-amber-500/10 text-amber-200 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.3)]'
+                    : 'border-slate-800 bg-[#070B16] text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <FlaskConical className={`h-4 w-4 ${selectedMode === INTERVIEW_MODES.DEMO ? 'text-amber-400' : 'text-slate-500'}`} />
+                  <span className="text-sm font-semibold">Demo Mode</span>
+                  {selectedMode === INTERVIEW_MODES.DEMO && (
+                    <span className="ml-auto rounded-md bg-amber-500/20 px-2 py-0.5 text-xs font-medium text-amber-300">Default</span>
+                  )}
+                </div>
+                <p className={`text-xs leading-relaxed ${selectedMode === INTERVIEW_MODES.DEMO ? 'text-amber-300/80' : 'text-slate-500'}`}>
+                  Scripted questions with simulated evaluation. No backend required. Great for trying the flow.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedMode(INTERVIEW_MODES.LIVE)}
+                className={`relative flex flex-col gap-1.5 rounded-xl border p-4 text-left transition ${
+                  selectedMode === INTERVIEW_MODES.LIVE
+                    ? 'border-violet-500/60 bg-violet-500/10 text-violet-200 shadow-[inset_0_0_0_1px_rgba(139,92,246,0.3)]'
+                    : 'border-slate-800 bg-[#070B16] text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Radio className={`h-4 w-4 ${selectedMode === INTERVIEW_MODES.LIVE ? 'text-violet-400' : 'text-slate-500'}`} />
+                  <span className="text-sm font-semibold">Live Mode</span>
+                </div>
+                <p className={`text-xs leading-relaxed ${selectedMode === INTERVIEW_MODES.LIVE ? 'text-violet-300/80' : 'text-slate-500'}`}>
+                  Real AI-generated questions and evaluation via the backend API. Requires authentication and an active AI service.
+                </p>
+              </button>
+            </div>
+          </div>
+
           {/* Company Selection */}
           <div className="space-y-2">
             <label className="block text-sm font-medium text-slate-200">

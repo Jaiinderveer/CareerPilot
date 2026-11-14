@@ -1,0 +1,614 @@
+<title>P2 Schema Audit</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* Utilitarian audit report — monochrome with teal status accents */
+  :root {
+    --bg: #fafbfc;
+    --fg: #1a1d23;
+    --fg-muted: #5a6170;
+    --surface: #ffffff;
+    --border: #e2e5ea;
+    --accent: #0d9488;
+    --accent-bg: #f0fdfa;
+    --warn: #d97706;
+    --warn-bg: #fffbeb;
+    --error: #dc2626;
+    --error-bg: #fef2f2;
+    --success: #059669;
+    --success-bg: #ecfdf5;
+    --code-bg: #f1f3f5;
+    --heading: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    --body: 'Inter', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', 'Consolas', monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1116;
+      --fg: #e4e7ec;
+      --fg-muted: #8b92a0;
+      --surface: #1a1d25;
+      --border: #2d3140;
+      --accent: #2dd4bf;
+      --accent-bg: #0d2d2a;
+      --warn: #fbbf24;
+      --warn-bg: #2d2305;
+      --error: #f87171;
+      --error-bg: #2d1010;
+      --success: #34d399;
+      --success-bg: #0d2d1a;
+      --code-bg: #1e2028;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1116;
+    --fg: #e4e7ec;
+    --fg-muted: #8b92a0;
+    --surface: #1a1d25;
+    --border: #2d3140;
+    --accent: #2dd4bf;
+    --accent-bg: #0d2d2a;
+    --warn: #fbbf24;
+    --warn-bg: #2d2305;
+    --error: #f87171;
+    --error-bg: #2d1010;
+    --success: #34d399;
+    --success-bg: #0d2d1a;
+    --code-bg: #1e2028;
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--body);
+    font-size: 0.9375rem;
+    line-height: 1.65;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 2rem 4rem;
+    max-width: 52rem;
+    margin: 0 auto;
+  }
+
+  h1, h2, h3 { font-family: var(--heading); text-wrap: balance; margin: 0; }
+  h1 { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin-top: 2.5rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--border); }
+  h3 { font-size: 1.05rem; font-weight: 600; margin-top: 1.5rem; color: var(--accent); }
+
+  .subtitle { color: var(--fg-muted); font-size: 0.875rem; margin-top: 0.25rem; }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    font-family: var(--mono); font-size: 0.75rem; font-weight: 500;
+    padding: 0.2em 0.65em; border-radius: 4px;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .badge-ready { background: var(--success-bg); color: var(--success); }
+  .badge-warn { background: var(--warn-bg); color: var(--warn); }
+  .badge-error { background: var(--error-bg); color: var(--error); }
+  .badge-info { background: var(--accent-bg); color: var(--accent); }
+
+  .verdict {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 1rem 1.25rem; margin-top: 1.5rem;
+    border-radius: 8px; font-weight: 600;
+    font-family: var(--heading); font-size: 1.1rem;
+  }
+  .verdict-ready { background: var(--success-bg); color: var(--success); border: 1px solid var(--success); }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-top: 1rem;
+  }
+
+  table {
+    width: 100%; border-collapse: collapse;
+    font-size: 0.8125rem; margin-top: 0.75rem;
+  }
+  th {
+    text-align: left; font-weight: 600;
+    font-family: var(--heading); font-size: 0.6875rem;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--fg-muted); padding: 0.5rem 0.75rem;
+    border-bottom: 2px solid var(--border);
+  }
+  td {
+    padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+
+  .table-wrap { overflow-x: auto; }
+
+  code {
+    font-family: var(--mono); font-size: 0.8125rem;
+    background: var(--code-bg); padding: 0.15em 0.4em;
+    border-radius: 3px;
+  }
+
+  .col-name { font-family: var(--mono); font-weight: 500; white-space: nowrap; }
+  .col-type { font-family: var(--mono); color: var(--fg-muted); font-size: 0.75rem; }
+
+  .section-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+    gap: 0.75rem; margin-top: 1rem;
+  }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.75rem 1rem;
+    display: flex; flex-direction: column; gap: 0.15rem;
+  }
+  .stat-num { font-family: var(--heading); font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat-label { font-size: 0.75rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+  .finding {
+    padding: 0.75rem 1rem; margin-top: 0.5rem;
+    border-radius: 6px; border-left: 3px solid;
+    font-size: 0.875rem;
+  }
+  .finding-fixed { background: var(--success-bg); border-color: var(--success); }
+  .finding-note { background: var(--accent-bg); border-color: var(--accent); }
+  .finding-question { background: var(--warn-bg); border-color: var(--warn); }
+
+  .finding strong { display: block; margin-bottom: 0.2rem; }
+
+  .rls-table td:first-child { font-weight: 500; }
+
+  ul { padding-left: 1.25rem; margin: 0.5rem 0; }
+  li { margin: 0.25rem 0; }
+
+  @media (max-width: 600px) {
+    h1 { font-size: 1.35rem; }
+    .section-grid { grid-template-columns: 1fr 1fr; }
+    table { font-size: 0.75rem; }
+    td, th { padding: 0.4rem 0.5rem; }
+  }
+</style>
+
+<header>
+  <h1>P2 Database Schema — Migration Audit</h1>
+  <p class="subtitle">CareerPilot · Branch <code>database/p2-schema</code> · Migrations 006–008 · Validated against P3 backend (<code>backend/p3-orchestration</code>)</p>
+</header>
+
+<div class="verdict verdict-ready">
+  <span>✓</span> READY FOR HUMAN SQL REVIEW
+</div>
+
+<!-- ===== Summary Stats ===== -->
+<h2>Summary</h2>
+<div class="section-grid">
+  <div class="stat-card"><span class="stat-num">3</span><span class="stat-label">Migration files</span></div>
+  <div class="stat-card"><span class="stat-num">11</span><span class="stat-label">Tables created</span></div>
+  <div class="stat-card"><span class="stat-num">18</span><span class="stat-label">RLS policies</span></div>
+  <div class="stat-card"><span class="stat-num">20</span><span class="stat-label">Indexes</span></div>
+  <div class="stat-card"><span class="stat-num">2</span><span class="stat-label">Triggers</span></div>
+  <div class="stat-card"><span class="stat-num">30</span><span class="stat-label">Seed rows</span></div>
+</div>
+
+<!-- ===== Migration 006 ===== -->
+<h2>Migration 006 — Question Bank</h2>
+<p class="subtitle">File: <code>database/migrations/006_create_question_bank.sql</code></p>
+
+<h3>Tables</h3>
+
+<div class="card">
+  <strong><code>skills</code></strong> <span class="badge badge-info">read-only to users</span>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Column</th><th>Type</th><th>Constraints</th></tr></thead>
+    <tbody>
+      <tr><td class="col-name">id</td><td class="col-type">UUID</td><td>PK, DEFAULT gen_random_uuid()</td></tr>
+      <tr><td class="col-name">name</td><td class="col-type">TEXT</td><td>NOT NULL, UNIQUE</td></tr>
+      <tr><td class="col-name">topic_area</td><td class="col-type">TEXT</td><td>NOT NULL</td></tr>
+      <tr><td class="col-name">description</td><td class="col-type">TEXT</td><td>nullable</td></tr>
+      <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td>DEFAULT now()</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<div class="card">
+  <strong><code>question_bank</code></strong> <span class="badge badge-info">read-only, reviewed only</span>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Column</th><th>Type</th><th>Constraints</th></tr></thead>
+    <tbody>
+      <tr><td class="col-name">id</td><td class="col-type">UUID</td><td>PK, DEFAULT gen_random_uuid()</td></tr>
+      <tr><td class="col-name">company_id</td><td class="col-type">UUID</td><td>FK → recruiters(id) ON DELETE SET NULL</td></tr>
+      <tr><td class="col-name">role</td><td class="col-type">TEXT</td><td>nullable — used by P3 <code>_next_question</code> filter</td></tr>
+      <tr><td class="col-name">round</td><td class="col-type">TEXT</td><td>nullable — used by P3 <code>_next_question</code> filter</td></tr>
+      <tr><td class="col-name">skill_id</td><td class="col-type">UUID</td><td>NOT NULL, FK → skills(id)</td></tr>
+      <tr><td class="col-name">difficulty</td><td class="col-type">INTEGER</td><td>NOT NULL, CHECK (1–5)</td></tr>
+      <tr><td class="col-name">question_text</td><td class="col-type">TEXT</td><td>NOT NULL</td></tr>
+      <tr><td class="col-name">source</td><td class="col-type">TEXT</td><td>nullable</td></tr>
+      <tr><td class="col-name">provenance</td><td class="col-type">TEXT</td><td>NOT NULL, CHECK IN (curated, company_reported, ai_generated)</td></tr>
+      <tr><td class="col-name">review_status</td><td class="col-type">TEXT</td><td>NOT NULL, CHECK IN (pending, reviewed, rejected), DEFAULT 'pending'</td></tr>
+      <tr><td class="col-name">rubric_version</td><td class="col-type">INTEGER</td><td>NOT NULL, DEFAULT 1</td></tr>
+      <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td>DEFAULT now()</td></tr>
+      <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td><td>DEFAULT now(), trigger-maintained</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<div class="card">
+  <strong><code>question_rubrics</code></strong> <span class="badge badge-info">read-only, via reviewed question</span>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Column</th><th>Type</th><th>Constraints</th></tr></thead>
+    <tbody>
+      <tr><td class="col-name">id</td><td class="col-type">UUID</td><td>PK, DEFAULT gen_random_uuid()</td></tr>
+      <tr><td class="col-name">question_id</td><td class="col-type">UUID</td><td>NOT NULL, FK → question_bank(id) ON DELETE CASCADE</td></tr>
+      <tr><td class="col-name">version</td><td class="col-type">INTEGER</td><td>NOT NULL, DEFAULT 1</td></tr>
+      <tr><td class="col-name">expected_concepts</td><td class="col-type">JSONB</td><td>NOT NULL</td></tr>
+      <tr><td class="col-name">scoring_guidance</td><td class="col-type">TEXT</td><td>nullable</td></tr>
+      <tr><td class="col-name">reviewed_at</td><td class="col-type">TIMESTAMPTZ</td><td>nullable</td></tr>
+      <tr><td class="col-name">reviewed_by</td><td class="col-type">TEXT</td><td>nullable</td></tr>
+      <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td>DEFAULT now()</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="font-size:0.8125rem;color:var(--fg-muted)">UNIQUE(question_id, version) — supports rubric versioning</p>
+</div>
+
+<div class="card">
+  <strong><code>rubric_criteria</code></strong> <span class="badge badge-info">read-only, via reviewed question</span>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Column</th><th>Type</th><th>Constraints</th></tr></thead>
+    <tbody>
+      <tr><td class="col-name">id</td><td class="col-type">UUID</td><td>PK, DEFAULT gen_random_uuid()</td></tr>
+      <tr><td class="col-name">rubric_id</td><td class="col-type">UUID</td><td>NOT NULL, FK → question_rubrics(id) ON DELETE CASCADE</td></tr>
+      <tr><td class="col-name">criterion_id</td><td class="col-type">TEXT</td><td>NOT NULL — matched by P3 against evaluation results</td></tr>
+      <tr><td class="col-name">description</td><td class="col-type">TEXT</td><td>NOT NULL</td></tr>
+      <tr><td class="col-name">importance</td><td class="col-type">TEXT</td><td>NOT NULL, CHECK IN (critical, required, optional)</td></tr>
+      <tr><td class="col-name">weight</td><td class="col-type">NUMERIC(3,2)</td><td>NOT NULL, CHECK (0–1)</td></tr>
+      <tr><td class="col-name">skill_id</td><td class="col-type">UUID</td><td>FK → skills(id) — included in rubric_snapshot</td></tr>
+      <tr><td class="col-name">accepted_alternatives</td><td class="col-type">JSONB</td><td>nullable</td></tr>
+      <tr><td class="col-name">common_misconceptions</td><td class="col-type">JSONB</td><td>nullable</td></tr>
+      <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td>DEFAULT now()</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="font-size:0.8125rem;color:var(--fg-muted)">UNIQUE(rubric_id, criterion_id) — prevents duplicate criteria</p>
+</div>
+
+<h3>Indexes (006)</h3>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Index</th><th>Columns</th><th>Justification</th></tr></thead>
+  <tbody>
+    <tr><td class="col-name">idx_skills_topic_area</td><td>skills(topic_area)</td><td>Filter by topic</td></tr>
+    <tr><td class="col-name">idx_question_bank_skill_id</td><td>question_bank(skill_id)</td><td>FK join, adaptive question selection</td></tr>
+    <tr><td class="col-name">idx_question_bank_company_id</td><td>question_bank(company_id)</td><td>FK join, company-specific filters</td></tr>
+    <tr><td class="col-name">idx_question_bank_difficulty</td><td>question_bank(difficulty)</td><td>Difficulty ordering in <code>_next_question</code></td></tr>
+    <tr><td class="col-name">idx_question_bank_review_status</td><td>question_bank(review_status)</td><td>RLS filter on every SELECT</td></tr>
+    <tr><td class="col-name">idx_question_bank_skill_difficulty</td><td>question_bank(skill_id, difficulty)</td><td>Compound for adaptive selection</td></tr>
+    <tr><td class="col-name">idx_question_rubrics_question_id</td><td>question_rubrics(question_id)</td><td>FK join in <code>_question_with_rubric</code></td></tr>
+    <tr><td class="col-name">idx_rubric_criteria_rubric_id</td><td>rubric_criteria(rubric_id)</td><td>FK join in <code>_question_with_rubric</code></td></tr>
+    <tr><td class="col-name">idx_rubric_criteria_skill_id</td><td>rubric_criteria(skill_id)</td><td>FK join for skill tracking</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>RLS Policies (006)</h3>
+<div class="table-wrap">
+<table class="rls-table">
+  <thead><tr><th>Table</th><th>Operation</th><th>Guard</th></tr></thead>
+  <tbody>
+    <tr><td>skills</td><td>SELECT</td><td>All authenticated — no filter</td></tr>
+    <tr><td>question_bank</td><td>SELECT</td><td><code>review_status = 'reviewed'</code></td></tr>
+    <tr><td>question_rubrics</td><td>SELECT</td><td>EXISTS reviewed parent question</td></tr>
+    <tr><td>rubric_criteria</td><td>SELECT</td><td>EXISTS reviewed parent question via rubric</td></tr>
+  </tbody>
+</table>
+</div>
+<p style="font-size:0.8125rem;color:var(--fg-muted)">No INSERT/UPDATE/DELETE for authenticated. All writes are service-role only (dashboard, seeds).</p>
+
+<h3>Triggers (006)</h3>
+<p><code>trigger_question_bank_updated_at</code> — BEFORE UPDATE, calls <code>handle_updated_at()</code> (defined in migration 004).</p>
+
+<!-- ===== Migration 007 ===== -->
+<h2>Migration 007 — Interview Session Tables</h2>
+<p class="subtitle">File: <code>database/migrations/007_create_interview_session_tables.sql</code></p>
+
+<h3>Tables</h3>
+
+<div class="card">
+  <strong><code>interviews</code></strong> <span class="badge badge-ready">user read/write</span>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Column</th><th>Type</th><th>Constraints</th></tr></thead>
+    <tbody>
+      <tr><td class="col-name">id</td><td class="col-type">UUID</td><td>PK, DEFAULT gen_random_uuid()</td></tr>
+      <tr><td class="col-name">candidate_id</td><td class="col-type">UUID</td><td>NOT NULL, FK → profiles(id) ON DELETE CASCADE</td></tr>
+      <tr><td class="col-name">company_id</td><td class="col-type">UUID</td><td>FK → recruiters(id) ON DELETE SET NULL</td></tr>
+      <tr><td class="col-name">role</td><td class="col-type">TEXT</td><td>nullable</td></tr>
+      <tr><td class="col-name">round</td><td class="col-type">TEXT</td><td>nullable</td></tr>
+      <tr><td class="col-name">duration_minutes</td><td class="col-type">INTEGER</td><td>NOT NULL, CHECK (&gt; 0)</td></tr>
+      <tr><td class="col-name">status</td><td class="col-type">TEXT</td><td>NOT NULL, CHECK 6-value enum, DEFAULT 'planned'</td></tr>
+      <tr><td class="col-name">job_description</td><td class="col-type">TEXT</td><td>nullable</td></tr>
+      <tr><td class="col-name">resume_url</td><td class="col-type">TEXT</td><td>nullable</td></tr>
+      <tr><td class="col-name">started_at</td><td class="col-type">TIMESTAMPTZ</td><td>nullable</td></tr>
+      <tr><td class="col-name">ended_at</td><td class="col-type">TIMESTAMPTZ</td><td>nullable</td></tr>
+      <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td>DEFAULT now()</td></tr>
+      <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td><td>DEFAULT now(), trigger-maintained</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="font-size:0.8125rem;color:var(--fg-muted)">Status enum: planned → active → paused → finalizing → completed | abandoned</p>
+</div>
+
+<div class="card">
+  <strong><code>interview_turns</code></strong> <span class="badge badge-ready">user read + insert</span>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Column</th><th>Type</th><th>Constraints</th></tr></thead>
+    <tbody>
+      <tr><td class="col-name">id</td><td class="col-type">UUID</td><td>PK, DEFAULT gen_random_uuid()</td></tr>
+      <tr><td class="col-name">interview_id</td><td class="col-type">UUID</td><td>NOT NULL, FK → interviews(id) ON DELETE CASCADE</td></tr>
+      <tr><td class="col-name">sequence_num</td><td class="col-type">INTEGER</td><td>NOT NULL</td></tr>
+      <tr><td class="col-name">question_id</td><td class="col-type">UUID</td><td>FK → question_bank(id) ON DELETE SET NULL</td></tr>
+      <tr><td class="col-name">question_text</td><td class="col-type">TEXT</td><td>NOT NULL</td></tr>
+      <tr><td class="col-name">rubric_snapshot</td><td class="col-type">JSONB</td><td>NOT NULL — immutable snapshot from <code>rubric_snapshot_from_row()</code></td></tr>
+      <tr><td class="col-name">is_follow_up</td><td class="col-type">BOOLEAN</td><td>NOT NULL, DEFAULT false</td></tr>
+      <tr><td class="col-name">parent_turn_id</td><td class="col-type">UUID</td><td>FK → interview_turns(id) ON DELETE SET NULL</td></tr>
+      <tr><td class="col-name">target_criterion_id</td><td class="col-type">TEXT</td><td>nullable — set by adaptive probe</td></tr>
+      <tr><td class="col-name">asked_at</td><td class="col-type">TIMESTAMPTZ</td><td>DEFAULT now()</td></tr>
+      <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td>DEFAULT now()</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="font-size:0.8125rem;color:var(--fg-muted)">UNIQUE(interview_id, sequence_num) — preserves ordering</p>
+</div>
+
+<div class="card">
+  <strong><code>answers</code></strong> <span class="badge badge-ready">user read + insert</span>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Column</th><th>Type</th><th>Constraints</th></tr></thead>
+    <tbody>
+      <tr><td class="col-name">id</td><td class="col-type">UUID</td><td>PK, DEFAULT gen_random_uuid()</td></tr>
+      <tr><td class="col-name">turn_id</td><td class="col-type">UUID</td><td>NOT NULL, UNIQUE, FK → interview_turns(id) ON DELETE CASCADE</td></tr>
+      <tr><td class="col-name">transcript_text</td><td class="col-type">TEXT</td><td>NOT NULL</td></tr>
+      <tr><td class="col-name">audio_duration_seconds</td><td class="col-type">INTEGER</td><td>CHECK (NULL or ≥ 0)</td></tr>
+      <tr><td class="col-name">submitted_at</td><td class="col-type">TIMESTAMPTZ</td><td>DEFAULT now()</td></tr>
+      <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td>DEFAULT now()</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<div class="card">
+  <strong><code>evaluations</code></strong> <span class="badge badge-warn">service-role write</span>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Column</th><th>Type</th><th>Constraints</th></tr></thead>
+    <tbody>
+      <tr><td class="col-name">id</td><td class="col-type">UUID</td><td>PK, DEFAULT gen_random_uuid()</td></tr>
+      <tr><td class="col-name">answer_id</td><td class="col-type">UUID</td><td>NOT NULL, UNIQUE, FK → answers(id) ON DELETE CASCADE</td></tr>
+      <tr><td class="col-name">gemini_model</td><td class="col-type">TEXT</td><td>NOT NULL</td></tr>
+      <tr><td class="col-name">prompt_version</td><td class="col-type">TEXT</td><td>NOT NULL</td></tr>
+      <tr><td class="col-name">rubric_version</td><td class="col-type">INTEGER</td><td>NOT NULL</td></tr>
+      <tr><td class="col-name">overall_score</td><td class="col-type">NUMERIC(3,2)</td><td>CHECK (NULL or 0–1)</td></tr>
+      <tr><td class="col-name">raw_response</td><td class="col-type">JSONB</td><td>nullable</td></tr>
+      <tr><td class="col-name">evaluated_at</td><td class="col-type">TIMESTAMPTZ</td><td>DEFAULT now()</td></tr>
+      <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td>DEFAULT now()</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<div class="card">
+  <strong><code>evaluation_criterion_results</code></strong> <span class="badge badge-warn">service-role write</span>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Column</th><th>Type</th><th>Constraints</th></tr></thead>
+    <tbody>
+      <tr><td class="col-name">id</td><td class="col-type">UUID</td><td>PK, DEFAULT gen_random_uuid()</td></tr>
+      <tr><td class="col-name">evaluation_id</td><td class="col-type">UUID</td><td>NOT NULL, FK → evaluations(id) ON DELETE CASCADE</td></tr>
+      <tr><td class="col-name">criterion_id</td><td class="col-type">TEXT</td><td>NOT NULL</td></tr>
+      <tr><td class="col-name">status</td><td class="col-type">TEXT</td><td>NOT NULL, CHECK 5-value enum</td></tr>
+      <tr><td class="col-name">score</td><td class="col-type">INTEGER</td><td>CHECK (NULL or 0–4)</td></tr>
+      <tr><td class="col-name">evidence_quote</td><td class="col-type">TEXT</td><td>nullable</td></tr>
+      <tr><td class="col-name">explanation</td><td class="col-type">TEXT</td><td>nullable</td></tr>
+      <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td>DEFAULT now()</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="font-size:0.8125rem;color:var(--fg-muted)">UNIQUE(evaluation_id, criterion_id) · Status enum: demonstrated, partially_demonstrated, not_demonstrated, contradicted, uncertain</p>
+</div>
+
+<div class="card">
+  <strong><code>candidate_skill_states</code></strong> <span class="badge badge-warn">service-role write</span>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Column</th><th>Type</th><th>Constraints</th></tr></thead>
+    <tbody>
+      <tr><td class="col-name">id</td><td class="col-type">UUID</td><td>PK, DEFAULT gen_random_uuid()</td></tr>
+      <tr><td class="col-name">candidate_id</td><td class="col-type">UUID</td><td>NOT NULL, FK → profiles(id) ON DELETE CASCADE</td></tr>
+      <tr><td class="col-name">skill_id</td><td class="col-type">UUID</td><td>NOT NULL, FK → skills(id)</td></tr>
+      <tr><td class="col-name">current_difficulty</td><td class="col-type">INTEGER</td><td>NOT NULL, CHECK (1–5), DEFAULT 2</td></tr>
+      <tr><td class="col-name">main_question_attempts</td><td class="col-type">INTEGER</td><td>NOT NULL, DEFAULT 0</td></tr>
+      <tr><td class="col-name">demonstrated_count</td><td class="col-type">INTEGER</td><td>NOT NULL, DEFAULT 0</td></tr>
+      <tr><td class="col-name">not_demonstrated_count</td><td class="col-type">INTEGER</td><td>NOT NULL, DEFAULT 0</td></tr>
+      <tr><td class="col-name">last_updated</td><td class="col-type">TIMESTAMPTZ</td><td>DEFAULT now()</td></tr>
+      <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td>DEFAULT now()</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="font-size:0.8125rem;color:var(--fg-muted)">UNIQUE(candidate_id, skill_id) — one row per candidate per skill</p>
+</div>
+
+<div class="card">
+  <strong><code>interview_reports</code></strong> <span class="badge badge-warn">service-role write</span>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Column</th><th>Type</th><th>Constraints</th></tr></thead>
+    <tbody>
+      <tr><td class="col-name">id</td><td class="col-type">UUID</td><td>PK, DEFAULT gen_random_uuid()</td></tr>
+      <tr><td class="col-name">interview_id</td><td class="col-type">UUID</td><td>NOT NULL, UNIQUE, FK → interviews(id) ON DELETE CASCADE</td></tr>
+      <tr><td class="col-name">overall_summary</td><td class="col-type">TEXT</td><td>NOT NULL</td></tr>
+      <tr><td class="col-name">overall_score</td><td class="col-type">NUMERIC(3,2)</td><td>CHECK (NULL or 0–1)</td></tr>
+      <tr><td class="col-name">topic_results</td><td class="col-type">JSONB</td><td>NOT NULL</td></tr>
+      <tr><td class="col-name">strengths</td><td class="col-type">JSONB</td><td>NOT NULL</td></tr>
+      <tr><td class="col-name">weaknesses</td><td class="col-type">JSONB</td><td>NOT NULL</td></tr>
+      <tr><td class="col-name">recommendations</td><td class="col-type">JSONB</td><td>NOT NULL</td></tr>
+      <tr><td class="col-name">gemini_model</td><td class="col-type">TEXT</td><td>NOT NULL</td></tr>
+      <tr><td class="col-name">generated_at</td><td class="col-type">TIMESTAMPTZ</td><td>DEFAULT now()</td></tr>
+      <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td>DEFAULT now()</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<h3>RLS Policies (007)</h3>
+<div class="table-wrap">
+<table class="rls-table">
+  <thead><tr><th>Table</th><th>SELECT</th><th>INSERT</th><th>UPDATE</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>interviews</td><td>Own rows</td><td>Own rows</td><td>Own rows</td><td><code>candidate_id = auth.uid()</code></td></tr>
+    <tr><td>interview_turns</td><td>Via interview</td><td>Via interview</td><td>—</td><td>Backend uses user-token <code>supabase.post()</code></td></tr>
+    <tr><td>answers</td><td>Via turn chain</td><td>Via turn chain</td><td>—</td><td>Backend uses user-token <code>supabase.post()</code></td></tr>
+    <tr><td>evaluations</td><td>Via answer chain</td><td>—</td><td>—</td><td>Service-role only (<code>admin.post()</code>)</td></tr>
+    <tr><td>evaluation_criterion_results</td><td>Via eval chain</td><td>—</td><td>—</td><td>Service-role only</td></tr>
+    <tr><td>candidate_skill_states</td><td>Own rows</td><td>—</td><td>—</td><td>Service-role only</td></tr>
+    <tr><td>interview_reports</td><td>Via interview</td><td>—</td><td>—</td><td>Service-role only</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Triggers (007)</h3>
+<p><code>trigger_interviews_updated_at</code> — BEFORE UPDATE on <code>interviews</code>, calls existing <code>handle_updated_at()</code> from migration 004. No redundant function definition.</p>
+
+<!-- ===== Migration 008 ===== -->
+<h2>Migration 008 — Seed Data</h2>
+<p class="subtitle">File: <code>database/migrations/008_seed_question_bank.sql</code></p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Entity</th><th>Count</th><th>UUID Prefix</th><th>Key Properties</th></tr></thead>
+  <tbody>
+    <tr><td>Skills</td><td>5</td><td><code>a1000000-…</code></td><td>DBMS, OS, DSA, OOP, Backend Dev</td></tr>
+    <tr><td>Questions</td><td>5</td><td><code>b1000000-…</code></td><td>1 per skill, difficulty 2–3, review_status='reviewed'</td></tr>
+    <tr><td>Rubrics</td><td>5</td><td><code>c1000000-…</code></td><td>1 per question, version 1, expected_concepts JSONB</td></tr>
+    <tr><td>Criteria</td><td>15</td><td><code>d1000000-…</code></td><td>3 per rubric, weights sum to 1.00</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p style="margin-top:0.75rem">All UUIDs are valid 8-4-4-4-12 format. All INSERTs use <code>ON CONFLICT (id) DO NOTHING</code> for idempotent re-runs. Provenance is <code>'curated'</code> for all questions. UUID ranges don't collide with recruiter seeds in migration 005.</p>
+
+<!-- ===== Backend Compatibility ===== -->
+<h2>Backend Compatibility Findings</h2>
+<p class="subtitle">Verified against <code>origin/backend/p3-orchestration</code> — every PostgREST call in <code>interviews.py</code></p>
+
+<div class="finding finding-fixed">
+  <strong>✓ All P3 PostgREST column references have matching schema columns</strong>
+  Verified: <code>interviews</code> (13 cols), <code>interview_turns</code> (10 cols), <code>answers</code> (3 write cols), <code>evaluations</code> (6 cols), <code>evaluation_criterion_results</code> (5 cols), <code>candidate_skill_states</code> (7 cols), <code>interview_reports</code> (8 cols). Every column used by <code>supabase.post()</code>, <code>admin.post()</code>, <code>supabase.patch()</code>, and <code>admin.patch()</code> exists in the schema with a compatible type.
+</div>
+
+<div class="finding finding-fixed">
+  <strong>✓ RLS INSERT policy added for <code>interview_turns</code></strong>
+  P3 backend calls <code>supabase.post('interview_turns', payload)</code> using the user's JWT (not service-role). The INSERT policy guards via <code>EXISTS (SELECT 1 FROM interviews WHERE ... candidate_id = auth.uid())</code>, matching the SELECT policy.
+</div>
+
+<div class="finding finding-fixed">
+  <strong>✓ Service-role tables correctly have no INSERT/UPDATE policies</strong>
+  <code>evaluations</code>, <code>evaluation_criterion_results</code>, <code>candidate_skill_states</code>, <code>interview_reports</code> — all written via <code>admin.post()</code> / <code>admin.patch()</code> with <code>service_role=True</code>, which bypasses RLS. No authenticated INSERT/UPDATE needed.
+</div>
+
+<div class="finding finding-fixed">
+  <strong>✓ <code>rubric_snapshot_from_row()</code> fields match schema</strong>
+  The snapshot includes <code>rubric_id</code>, <code>version</code>, <code>expected_concepts</code>, <code>skill_id</code>, and <code>criteria[]</code> array with <code>criterion_id</code>, <code>description</code>, <code>importance</code>, <code>weight</code>, <code>skill_id</code> — all columns exist in <code>question_rubrics</code> and <code>rubric_criteria</code>.
+</div>
+
+<div class="finding finding-fixed">
+  <strong>✓ <code>_next_question()</code> filters match schema</strong>
+  Filters on <code>review_status</code>, <code>role</code>, <code>round</code>, orders by <code>difficulty.asc, created_at.asc</code> — all columns exist. RLS policy restricts to <code>review_status = 'reviewed'</code>, matching the backend filter.
+</div>
+
+<div class="finding finding-fixed">
+  <strong>✓ CHECK constraint enums match Pydantic contracts</strong>
+  <code>InterviewStatus</code> Literal = <code>interviews.status</code> CHECK. <code>CriterionStatus</code> Literal = <code>evaluation_criterion_results.status</code> CHECK. <code>NextAction</code> Literal = adaptive controller outputs (not persisted). All match exactly.
+</div>
+
+<div class="finding finding-fixed">
+  <strong>✓ No redundant <code>handle_updated_at()</code> function definition</strong>
+  Migration 007 references the existing function from 004 without redefining it. Migration 006 does the same.
+</div>
+
+<!-- ===== Questions for P3 ===== -->
+<h2>Unresolved Questions for P3</h2>
+
+<div class="finding finding-question">
+  <strong>Q1: Should <code>candidate_skill_states</code> have ON DELETE CASCADE for <code>skill_id</code>?</strong>
+  Currently FK to <code>skills(id)</code> with no ON DELETE action (defaults to RESTRICT). If a skill is ever deleted, rows referencing it would block deletion. Unlikely for curated skills, but P3 should confirm.
+</div>
+
+<div class="finding finding-question">
+  <strong>Q2: Does P3 need UPDATE policy on <code>interview_turns</code>?</strong>
+  Currently only SELECT and INSERT. The backend doesn't appear to PATCH turns, but if follow-up metadata needs updating post-creation, an UPDATE policy would be needed.
+</div>
+
+<div class="finding finding-question">
+  <strong>Q3: Should <code>interview_reports.overall_summary</code> allow NULL?</strong>
+  Currently <code>NOT NULL</code>. The P3 backend defaults to <code>report_data.get('overall_summary', '')</code> — an empty string satisfies NOT NULL, but if the AI service omits it entirely and the fallback is changed, it could fail.
+</div>
+
+<div class="finding finding-note">
+  <strong>Note: <code>question_bank.role</code> and <code>question_bank.round</code> columns are nullable</strong>
+  P3 filters on these only when the interview itself has them set. The seed data (008) leaves them NULL since the seeded questions are general-purpose. Company-specific filtering will work once production data populates these columns.
+</div>
+
+<!-- ===== Dependency Order ===== -->
+<h2>Migration Dependency Order</h2>
+
+<div class="card">
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Order</th><th>Migration</th><th>Depends On</th></tr></thead>
+    <tbody>
+      <tr><td style="font-variant-numeric:tabular-nums">001</td><td><code>create_profiles</code></td><td><code>auth.users</code> (Supabase built-in)</td></tr>
+      <tr><td style="font-variant-numeric:tabular-nums">004</td><td><code>create_career_intelligence_tables</code></td><td>Defines <code>handle_updated_at()</code>, <code>recruiters</code></td></tr>
+      <tr><td style="font-variant-numeric:tabular-nums">005</td><td><code>seed_initial_data</code></td><td>004 (recruiters)</td></tr>
+      <tr><td style="font-variant-numeric:tabular-nums">006</td><td><code>create_question_bank</code></td><td>004 (recruiters, handle_updated_at)</td></tr>
+      <tr><td style="font-variant-numeric:tabular-nums">007</td><td><code>create_interview_session_tables</code></td><td>001 (profiles), 004 (recruiters, handle_updated_at), 006 (question_bank, skills)</td></tr>
+      <tr><td style="font-variant-numeric:tabular-nums">008</td><td><code>seed_question_bank</code></td><td>006 (skills, question_bank, question_rubrics, rubric_criteria)</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="font-size:0.8125rem;color:var(--fg-muted);margin-top:0.5rem">✓ All dependencies satisfied in numeric order. No circular references.</p>
+</div>
+
+<!-- ===== Bugs Fixed ===== -->
+<h2>Bugs Found &amp; Fixed During Validation</h2>
+
+<div class="finding finding-fixed">
+  <strong>Fixed: Invalid UUID formats in migration 008</strong>
+  Original seed UUIDs had wrong segment lengths (e.g., 10-char first segments like <code>faaaaaaaaa-…</code>). Replaced all with valid 8-4-4-4-12 format UUIDs using distinct prefixes per entity type (<code>a1</code>=skills, <code>b1</code>=questions, <code>c1</code>=rubrics, <code>d1</code>=criteria).
+</div>
+
+<div class="finding finding-fixed">
+  <strong>Fixed: Missing INSERT RLS policy for <code>interview_turns</code></strong>
+  P3 backend creates turns via <code>supabase.post('interview_turns', payload)</code> using user-token, not service-role. Without an INSERT policy, this call would be rejected by RLS. Added ownership-chain policy.
+</div>
+
+<div class="finding finding-fixed">
+  <strong>Fixed: Redundant <code>CREATE OR REPLACE FUNCTION handle_updated_at()</code></strong>
+  Migration 007 originally redefined the trigger function already created in 004. Removed the duplicate; 007 now only creates the trigger referencing the existing function.
+</div>
+
+<div class="finding finding-fixed">
+  <strong>Fixed: UUID collision with recruiter seeds</strong>
+  Skills originally used UUID prefix <code>22222222-…</code>, which matched the Infosys recruiter UUID in migration 005. Different tables (no FK conflict), but confusing. Changed to distinct <code>a1000000-…</code> series.
+</div>
+
+<p style="margin-top:2rem;padding-top:1rem;border-top:1px solid var(--border);font-size:0.8125rem;color:var(--fg-muted)">
+  Generated by P2 Database Engineer · CareerPilot · <code>database/p2-schema</code> branch · Not committed, not executed
+</p>

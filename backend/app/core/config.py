@@ -31,9 +31,35 @@ class Settings(BaseSettings):
         validation_alias='FRONTEND_ORIGIN',
     )
 
+    # P4 AI Provider Configuration
+    gemini_api_key: Optional[str] = Field(default=None, validation_alias='GEMINI_API_KEY')
+    gemini_model: str = Field(default='gemini-3-flash-preview', validation_alias='GEMINI_MODEL')
+
+    elevenlabs_api_key: Optional[str] = Field(default=None, validation_alias='ELEVENLABS_API_KEY')
+    elevenlabs_voice_id: str = Field(
+        default='21m00Tcm4TlvDq8ikWAM',  # Rachel - professional female voice
+        validation_alias='ELEVENLABS_VOICE_ID',
+    )
+    elevenlabs_model_id: str = Field(
+        default='eleven_multilingual_v2',
+        validation_alias='ELEVENLABS_MODEL_ID',
+    )
+
     @property
     def is_supabase_configured(self) -> bool:
         return bool(self.supabase_url and self.supabase_publishable_key)
+
+    @property
+    def is_gemini_configured(self) -> bool:
+        return bool(self.gemini_api_key)
+
+    @property
+    def is_elevenlabs_configured(self) -> bool:
+        return bool(self.elevenlabs_api_key)
+
+    @property
+    def is_ai_service_configured(self) -> bool:
+        return self.is_gemini_configured
 
     @property
     def allowed_origins(self) -> list[str]:
