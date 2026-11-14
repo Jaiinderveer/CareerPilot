@@ -11,6 +11,8 @@ const titles = {
   '/skills': { title: 'My Skills', breadcrumb: 'CareerPilot / Skills' },
   '/profile': { title: 'My Profile', breadcrumb: 'CareerPilot / Profile' },
   '/account-settings': { title: 'Account Settings', breadcrumb: 'CareerPilot / Account Settings' },
+  '/interview/setup': { title: 'Interview Setup', breadcrumb: 'CareerPilot / Interview Setup' },
+  '/interview/:interviewId': { title: 'Interview Session', breadcrumb: 'CareerPilot / Interview' },
 }
 
 export default function DashboardLayout() {
@@ -18,6 +20,8 @@ export default function DashboardLayout() {
   const location = useLocation()
   const meta = location.pathname.startsWith('/recruiters/')
     ? titles['/recruiters']
+    : location.pathname.startsWith('/interview/') && location.pathname !== '/interview/setup'
+    ? titles['/interview/:interviewId']
     : titles[location.pathname] || { title: 'CareerPilot', breadcrumb: 'CareerPilot' }
 
   return (

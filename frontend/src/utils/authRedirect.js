@@ -82,7 +82,7 @@ function getCurrentOrigin() {
 export function getAuthRedirectTo(route, { origin, isProduction } = {}) {
   const normalizedRoute = normalizeRoute(route)
   const resolvedOrigin = normalizeOrigin(origin || getCurrentOrigin())
-  const production = isProduction ?? isProductionBuild()
+  const production = isProduction ?? isProductionBuild() 
 
   if (isLocalhostOrigin(resolvedOrigin) && production) {
     throw new Error(

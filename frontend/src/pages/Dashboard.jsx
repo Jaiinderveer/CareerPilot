@@ -97,6 +97,29 @@ export default function Dashboard() {
         })}
       </div>
 
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="p-6 bg-gradient-to-br from-violet-950/40 via-[#10182A] to-[#10182A] border-violet-500/30 lg:col-span-3">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-2">
+              <Badge tone="primary">Phase 1 Feature</Badge>
+              <h3 className="font-[family-name:var(--font-display)] text-xl font-semibold text-white">
+                Practice Live Voice Interviews with AI Avatar
+              </h3>
+              <p className="text-sm text-slate-300 max-w-2xl">
+                Configure your target recruiter, round type, and resume to simulate an actual placement interview with real-time audio and criterion evaluation.
+              </p>
+            </div>
+            <Link
+              to="/interview/setup"
+              className="inline-flex items-center gap-2 self-start rounded-xl bg-gradient-to-r from-violet-600 to-cyan-600 px-5 py-3 text-sm font-medium text-white shadow-lg shadow-violet-500/20 transition hover:from-violet-500 hover:to-cyan-500 shrink-0"
+            >
+              Start Interview Setup
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </Card>
+      </div>
+
       <div className="grid gap-6 xl:grid-cols-3">
         <Card className="p-5 xl:col-span-2">
           <div className="mb-4 flex items-center justify-between">

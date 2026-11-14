@@ -1,5 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import InterviewSetup from './pages/InterviewSetup'
+import InterviewRoom from './pages/InterviewRoom'
 import Dashboard from './pages/Dashboard'
 import Roadmaps from './pages/Roadmaps'
 import Recruiters from './pages/Recruiters'
@@ -50,6 +52,8 @@ export default function App() {
           <Route path="/complete-profile" element={<ProtectedRoute><CompleteProfile /></ProtectedRoute>} />
           <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/interview/setup" element={<InterviewSetup />} />
+            <Route path="/interview/:interviewId" element={<InterviewRoom />} />
             <Route path="/roadmaps" element={<Roadmaps />} />
             <Route path="/recruiters" element={<Recruiters />} />
             <Route path="/recruiters/:recruiterId" element={<Recruiters />} />

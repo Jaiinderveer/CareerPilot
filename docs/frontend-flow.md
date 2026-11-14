@@ -19,6 +19,9 @@
 11. [API Interactions by Page](#api-interactions-by-page)
 12. [UI Component Reference](#ui-component-reference)
 13. [Design System](#design-system)
+14. [Interview History Flow](#interview-history-flow)
+15. [P1 Implementation Dependencies](#p1-implementation-dependencies)
+16. [Phase Boundaries](#phase-boundaries)
 
 ---
 
@@ -887,3 +890,254 @@ if (isDemoMode) {
 | Network timeout on answer submit | Show retry button; prevent duplicate submissions — backend rejects duplicate answers via `409 Conflict` on `turn_id` |
 
 > **Critical:** Every answer submission must be idempotent. If the user refreshes after submitting but before seeing the result, re-fetching the turn returns the already-saved evaluation. The backend rejects a second answer for the same `turn_id` with `409 Conflict`.
+
+---
+
+## Interview History Flow
+
+### Page: `/interview/history`
+
+**Component:** `src/pages/InterviewHistory.jsx`
+
+**Purpose:** List all interview sessions for the authenticated candidate, allow reopening completed reports, and show status of in-progress or incomplete interviews.
+
+```mermaid
+flowchart TD
+    A["Navigate to /interview/history"] --> B["GET /api/interviews"]
+    B --> C{API response}
+    C -->|200 + data| D["Render interview list"]
+    C -->|200 + empty| E["Show EmptyState: No interviews yet"]
+    C -->|401| F["Redirect to /login"]
+    C -->|403/500/503| G["Show error state with retry"]
+    D --> H{Interview status}
+    H -->|completed| I["Show: company, role, round, date, duration, overall_score"]
+    H -->|active| J["Show: company, role, round, started_at, Resume button"]
+    H -->|paused| K["Show: company, role, round, started_at, Resume button"]
+    H -->|finalizing| L["Show: company, role, round, started_at, Generating report..."]
+    H -->|abandoned| M["Show: company, role, round, ended_at, abandoned"]
+    I --> N["Click → Navigate to /interview/:id/report"]
+    J --> O["Click → Navigate to /interview/:id"]
+    K --> O
+    L --> P["Poll GET /api/interviews/:id every 3s"]
+    P -->|completed| N
+    P -->|still finalizing| L
+```
+
+### List Item Metadata
+
+| Field | Source | Display |
+|-------|--------|---------|
+| Company name | `company.name` (nested) or "—" | Primary label |
+| Role | `role` | Secondary label |
+| Round | `round` | Badge (`tone: primary`) |
+| Status | `status` | Badge: `completed`=success, `active`/`paused`=active, `finalizing`=muted, `abandoned`=muted |
+| Date | `started_at` or `ended_at` | Formatted date (e.g., "Jun 20, 2024") |
+| Duration | `duration_minutes` (planned) or computed actual | "30 min planned" or "28 min actual" |
+| Overall score | `overall_score` (from `InterviewDetailResponse` or report) | Only for `completed` interviews; percentage bar |
+
+### UI States
+
+| State | Display |
+|-------|---------|
+| Loading | Skeleton cards (company, role, status placeholders) |
+| Populated | List of interview cards with metadata and actions |
+| Empty | `EmptyState` with title "No interviews yet", description "Start your first interview from the Dashboard", CTA button → `/interview/setup` |
+| Error | Inline error message with "Retry" button (re-fetches `GET /api/interviews`) |
+| Auth error | Redirect to `/login` (handled by `ProtectedRoute`) |
+
+### Reopening a Completed Interview Report
+
+1. User clicks a completed interview card
+2. Navigate to `/interview/{id}/report`
+3. If `GET /api/interviews/{id}/report` returns 200 → render `InterviewReport`
+4. If 409 (not yet completed) → show "Report still generating" with polling (same as Report Flow)
+5. If 404 → show `EmptyState` "Report not found" with link back to history
+
+### Resuming an In-Progress Interview
+
+| Status | Action |
+|--------|--------|
+| `active` | Navigate to `/interview/{id}` → `InterviewRoom` reloads from `GET /api/interviews/{id}` and resumes from `current_turn` |
+| `paused` | Same as `active` |
+| `finalizing` | Navigate to `/interview/{id}/report` → polling waits for `completed` |
+
+### Incomplete or Failed Interviews
+
+| Status | Handling |
+|--------|----------|
+| `abandoned` | Read-only card; no resume action. Shows end date. User can start a new interview. |
+| `planned` | (Should not appear in history after creation — user goes directly to `/interview/{id}`) |
+| Report unavailable (404 on `/report` for `completed` interview) | Show `EmptyState` "Report not found — this interview may have failed to finalize. Contact support if this persists." |
+
+### API Endpoint (strictly from `api-contract.md`)
+
+**`GET /api/interviews`**
+
+- Authentication: Required (Bearer token)
+- Query params: `status` (optional filter), `limit` (1-50, default 20), `offset` (default 0)
+- Response: `InterviewResponse[]` (see schema in API Contract)
+- Each item includes nested `company` object (`id`, `name`) if `company_id` was set
+
+**`GET /api/interviews/{interview_id}/report`**
+
+- Authentication: Required
+- Response: `InterviewReportResponse` (see schema in API Contract)
+- Errors: 401, 403, 404, 409 (not completed)
+
+> **Requires team agreement:** `api-contract.md` does not define a dedicated "history" endpoint. `GET /api/interviews` with optional `status` filter is the agreed mechanism. If pagination UX requires cursor-based pagination or infinite scroll, the contract must be updated by P3.
+
+---
+
+## P1 Implementation Dependencies
+
+### Dependency Matrix
+
+| Area | P1 Can Build Independently | Requires P2 (Database) | Requires P3 (Orchestration/API) | Requires P4 (AI/Providers) | Notes |
+|------|----------------------------|------------------------|--------------------------------|----------------------------|-------|
+| **Auth / Session** | ✅ Full — `AuthContext`, Supabase PKCE, OAuth | — | — | — | Uses existing `services/supabase.js` |
+| **Dashboard (demo)** | ✅ Full — `demoData.js`, static components | — | — | — | Replace demo with API calls post-MVP |
+| **Dashboard (live)** | ✅ UI + `apiRequest` integration | `candidate_skill_states` table | `GET /api/me/skill-states` endpoint | — | P1 can build with mocked skill states |
+| **Recruiters / Roles / Experiences** | ✅ Full — existing `apiRequest` + UI | — | ✅ Endpoints already implemented | — | No new dependencies |
+| **Profile / Account Settings** | ✅ Full — `PATCH /api/me/profile`, Supabase Auth | — | ✅ Endpoints already implemented | — | No new dependencies |
+| **Interview Setup** | ✅ Form UI, validation, company picker | — | `POST /api/interviews` endpoint | — | Can develop with mocked `POST /api/interviews` |
+| **Interview Room — UI** | ✅ State machine, layout, Simli/STT integration points | — | `GET /api/interviews/{id}`, `POST /start`, `POST /answer`, `GET /audio`, `POST /finish` | `GET /api/stt/token`, TTS audio, Simli session | **P1 owns UI state machine only** — P3 owns backend state transitions |
+| **Interview Room — Voice** | ✅ STT WebSocket, TTS streaming, Simli SDK | — | `GET /api/stt/token` endpoint | ElevenLabs STT/TTS, Simli API | Can develop with mocked tokens and audio |
+| **Interview Report** | ✅ Layout, criterion rows, topic cards, recommendations | — | `GET /api/interviews/{id}/report`, `GET /api/interviews/{id}` (polling) | — | Can develop with mocked report response |
+| **Interview History** | ✅ List UI, empty/loading/error states, resume actions | — | `GET /api/interviews` (already defined) | — | Can develop with mocked interview list |
+| **Skill Progress / Roadmap Integration** | ❌ Requires live skill states | `candidate_skill_states` table + seed | `GET /api/me/skill-states` | P4: skill evidence aggregation | Post-MVP; mark as blocked |
+| **Adaptive Question Selection** | ❌ **Never** — P3 owns the Adaptive Controller | — | P3: `app/core/adaptive.py` | P4: follow-up generator, evaluator | P1 must **not** implement next-question logic |
+| **Answer Evaluation** | ❌ **Never** — P4 owns evaluation | — | P3: calls P4 evaluator | P4: `app/services/evaluator.py` | P1 displays criterion results only |
+| **Interview Planning** | ❌ **Never** — P3 owns planner orchestration | `question_bank`, `skills`, rubrics | P3: `app/services/planner.py` | P4: `app/services/planner.py` | P1 submits config; backend returns first turn |
+| **Report Generation** | ❌ **Never** — P3 orchestrates, P4 narrates | `interview_reports` table | P3: `POST /finish` → narrator | P4: `app/services/narrator.py` | P1 polls and displays only |
+
+### Mock-First Development Strategy
+
+P1 can develop the following pages **fully independently** using mocked API responses while P2/P3/P4 implement backend:
+
+| Page | Mock Dependencies |
+|------|-------------------|
+| `InterviewSetup` | Mock `GET /api/recruiters` (existing), mock `POST /api/interviews` → returns `{ id, status: "planned" }` |
+| `InterviewRoom` | Mock `GET /api/interviews/{id}` → planned/active state, mock `POST /start` → `{ first_turn, tts_audio_url }`, mock `GET /audio` → silent audio blob, mock `GET /api/stt/token` → dummy token/ws URL, mock `POST /answer` → `{ evaluation, next_action, next_turn }` |
+| `InterviewReport` | Mock `GET /api/interviews/{id}/report` → full `InterviewReportResponse` |
+| `InterviewHistory` | Mock `GET /api/interviews` → list of interviews with varied statuses |
+
+> **Critical boundary:** P1 **must not** implement any logic that decides:
+> - Which question comes next (`next_action: probe | select_question | finish`)
+> - Whether a follow-up is required
+> - Criterion-level evaluation statuses
+> - Interview status transitions (`planned` → `active` → `finalizing` → `completed`)
+> - Skill difficulty adaptation
+>
+> These are **exclusively P3 responsibilities** (orchestration) and **P4 responsibilities** (AI evaluation/follow-up generation). P1 is a **dumb consumer** of backend state — it renders what the API returns.
+
+### What Must Wait for Confirmed Contract/Integration
+
+| Feature | Blocked On | Resolution Owner |
+|---------|------------|------------------|
+| Real `POST /api/interviews` | P3 implements `app/routers/interviews.py` + P2 migrations 006/007 | P3 + P2 |
+| Real `POST /api/interviews/{id}/start` | P3 planner + P4 Gemini integration | P3 + P4 |
+| Real `POST /api/interviews/{id}/turns/{turn_id}/answer` | P3 adaptive controller + P4 evaluator | P3 + P4 |
+| Real `GET /api/stt/token` | P4 ElevenLabs STT integration | P4 |
+| Real TTS audio streaming | P4 ElevenLabs TTS + Simli server session | P4 |
+| Real Simli avatar | P4 Simli session integration | P4 |
+| Real `GET /api/me/skill-states` | P2 `candidate_skill_states` table + P3 endpoint | P2 + P3 |
+| Real `GET /api/interviews/{id}/report` | P3 report orchestration + P4 narrator | P3 + P4 |
+
+---
+
+## Phase Boundaries
+
+### Current Phase: Phase 1 — Frontend Documentation & Contract Agreement
+
+**Deliverable:** This document (`docs/frontend-flow.md`) as the agreed single source of truth for:
+- All frontend routes, pages, and component architecture
+- UI state machines and user flows
+- API integration patterns (using existing `apiRequest` utility)
+- Voice/avatar integration points (STT, TTS, Simli)
+- Design system tokens and component library
+- Dependencies on P2, P3, P4
+
+**Scope:**
+- ✅ Documentation complete
+- ✅ Contract review with P2/P3/P4 (this document + `api-contract.md` + `database-schema.md` + `architecture.md`)
+- ✅ No implementation code written
+
+### Phase 2: Independent Frontend Development (P1)
+
+**Trigger:** All four planning documents approved and P2/P3/P4 confirm API contracts will not change.
+
+**P1 Builds Independently (with mocks):**
+- `InterviewSetup` page + form components
+- `InterviewRoom` page + sub-components (state machine, Simli/STT integration skeleton)
+- `InterviewReport` page + report components
+- `InterviewHistory` page
+- Dashboard CTA → `/interview/setup` wiring
+- Sidebar nav item for History (if approved)
+- Demo mode fallbacks for all new pages
+
+**Blocked Until P2/P3/P4 Deliver:**
+- Real API endpoints (see "What Must Wait" table above)
+- Database migrations 006, 007, 008
+- ElevenLabs STT/TTS tokens, Simli session endpoint
+
+### Phase 3: Backend Implementation (P2 + P3 + P4)
+
+**P2 (Database):**
+- Migrations 006 (`skills`, `question_bank`, `question_rubrics`, `rubric_criteria`)
+- Migrations 007 (`interviews`, `interview_turns`, `answers`, `evaluations`, `evaluation_criterion_results`, `candidate_skill_states`, `interview_reports`)
+- Migration 008 (seed data: skills + 21 curated questions with reviewed rubrics)
+
+**P3 (Orchestration/API):**
+- `app/routers/interviews.py` — all endpoints in `api-contract.md` "New Endpoints (MVP)"
+- `app/core/adaptive.py` — Adaptive Controller (NextAction decisions)
+- `app/services/supabase.py` — extended for interview tables
+- `app/schemas/interview.py`, `app/schemas/evaluation.py`
+
+**P4 (AI/Providers):**
+- `app/services/gemini.py` — client singleton
+- `app/services/planner.py` — interview plan generation
+- `app/services/evaluator.py` — criterion-level evaluation
+- `app/services/followup.py` — dynamic follow-up generation
+- `app/services/narrator.py` — report narrative generation
+- `app/services/tts.py` — ElevenLabs TTS streaming
+- `app/services/stt.py` — STT token generation
+- Simli server session integration
+
+### Phase 4: Integration & End-to-End Testing
+
+**Trigger:** P2/P3/P4 report endpoints deployed to staging (Render) with seeded question bank.
+
+**Activities:**
+- Replace all mocked API calls in P1 with real `apiRequest` calls
+- STT WebSocket integration with real ElevenLabs tokens
+- TTS audio streaming with real backend endpoint
+- Simli avatar initialization with real session ID
+- Interview flow E2E: Setup → Room → Answer → Follow-up → Finish → Report
+- Browser refresh recovery testing
+- Error recovery testing (STT disconnect, TTS failure, 503 retry)
+- Load testing with concurrent interviews
+- Security review: token forwarding, RLS, service-role key isolation
+
+### Phase 5: Deployment & Stabilization
+
+**Frontend:** Vercel deploy with `VITE_API_URL=https://careerpilot-5tiz.onrender.com`
+
+**Backend:** Render deploy with all env vars (see `architecture.md` Deployment Architecture)
+
+**Stabilization:**
+- Monitor 503 rates (Gemini, ElevenLabs, Simli)
+- Verify RLS policies in production
+- Verify CORS/allowed origins
+- Iterate on UX based on real usage
+
+---
+
+### Ambiguities Requiring Team Agreement
+
+1. **`InterviewHistory` page route** — Not in `architecture.md` page inventory. Proposed: `/interview/history` under `ProtectedRoute` + `DashboardLayout`. P1/P3 to confirm.
+2. **Sidebar nav for History** — `architecture.md` doesn't list it. Requires design decision.
+3. **`GET /api/interviews` pagination** — `api-contract.md` uses `limit`/`offset`. If P1 needs cursor/infinite scroll, P3 must update contract.
+4. **Resume upload in InterviewSetup** — `api-contract.md` includes `resume_url` in `InterviewCreate`. Frontend file upload → Supabase Storage → return URL. P2/P3 to confirm storage bucket and upload flow.
+5. **Skill progress on Dashboard** — `api-contract.md` lists `GET /api/me/skill-states` as "New" (not implemented). P3 to confirm timeline.
+6. **Report polling interval** — Documented as 3s. P3 to confirm if backend supports WebSocket push for `finalizing` → `completed` transition.
+7. **Simli audio contract** — `api-contract.md` notes "Audio spec confirmed in Phase 2 TTS PoC — values TBD." P4 to finalize codec/sample rate/chunk size before P1 implements `feedAudio`.
