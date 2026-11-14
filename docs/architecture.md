@@ -224,6 +224,30 @@ The platform operates as three interconnected systems:
 | `app/services/tts.py` | P4 | ElevenLabs TTS streaming | ❌ Not started |
 | `app/services/stt.py` | P4 | STT token generation | ❌ Not started |
 
+#### Phase 1 AI and voice service interfaces
+
+P3 imports the provider-neutral models from `app.schemas.interview_ai` and calls
+P4's async service functions. These functions return validated values only; they
+do not write to Supabase or transition interview state.
+
+```python
+from app.services.gemini_service import evaluate_answer, generate_followup
+
+result = await evaluate_answer(turn_input)       # QuestionEvaluationSchema
+follow_up = await generate_followup(turn_input)  # FollowUpGenerationSchema
+```
+
+`QuestionEvaluationSchema` uses normalized scores from `0.0` to `1.0`, matching
+the API contract. Provider failures return conservative, schema-valid fallback
+objects with unavailable scores set to `null`, so P3 can distinguish service
+failure from a real zero score and choose whether to retry, clarify, or return `503`.
+
+`VoiceService.synthesize_speech(text)` returns `AudioResult` containing audio
+bytes, media type, and an `is_mock` flag. `VoiceService.transcribe_audio(bytes)`
+is a Phase 1 file-based STT demonstration. Production remains browser-direct
+ElevenLabs realtime STT as required by Decision 5; the backend receives only the
+final transcript.
+
 ### Database Tables (P2)
 
 | Table | Owner | Purpose | Status |

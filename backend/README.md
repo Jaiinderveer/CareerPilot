@@ -36,6 +36,9 @@ Copy `.env.example` to `.env` and set:
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_PUBLISHABLE_KEY=your-anon-or-publishable-key
 FRONTEND_ORIGIN=http://localhost:5173
+GEMINI_API_KEY=your-server-side-gemini-key
+GEMINI_MODEL=gemini-2.5-flash
+ELEVENLABS_API_KEY=your-server-side-elevenlabs-key
 ```
 
 `SUPABASE_ANON_KEY` is accepted as a legacy fallback by the configuration, but new deployments should use `SUPABASE_PUBLISHABLE_KEY`. Never add a service-role key to this repository or the frontend.
@@ -75,6 +78,15 @@ pytest
 ```
 
 The tests use fakes for upstream Supabase calls and do not execute SQL or modify a production project.
+
+Run the P4 provider proof of concept from the `backend` directory:
+
+```bash
+python scripts/test_p4_poc.py
+```
+
+It prints Gemini's structured evaluation and follow-up, writes one ignored audio
+file, and uses mock TTS/STT fallbacks when `ELEVENLABS_API_KEY` is empty.
 
 ## Database migrations
 

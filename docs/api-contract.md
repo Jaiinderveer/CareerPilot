@@ -1097,6 +1097,39 @@ async function conductInterview(session, interviewConfig) {
 
 ## Voice Integration APIs
 
+### Internal AI Service Contract (P3 → P4)
+
+These are internal Python interfaces, not public HTTP endpoints:
+
+```python
+turn_input = InterviewTurnInput(
+    question=question_text,
+    candidate_transcript=transcript_text,
+    rubric_criteria=[criterion_text, ...],
+    role_context=role_context,
+)
+
+evaluation = await evaluate_answer(turn_input)
+follow_up = await generate_followup(turn_input)
+```
+
+`QuestionEvaluationSchema` returns normalized `clarity`,
+`technical_accuracy`, `communication`, and `overall_score` values in the
+`0.0`–`1.0` range, plus `strengths`, `improvements`, and concise `feedback`.
+Unavailable scores are `null`, never fabricated as zero.
+`FollowUpGenerationSchema` returns `reasoning`, `should_ask_followup`,
+`follow_up_question`, and `target_competency`.
+
+Both Gemini functions always return their declared schema. On provider or
+configuration failure they return conservative fallback data; P3 remains the
+only component allowed to select the next action or change interview state.
+
+For server-side question audio, `VoiceService.synthesize_speech(text)` returns
+`AudioResult(audio_bytes, media_type, is_mock)`. An empty ElevenLabs key yields
+valid silent WAV bytes with `is_mock=true`, allowing local integration without a
+provider account. `VoiceService.transcribe_audio(audio_bytes)` exists only as a
+Phase 1 file-STT PoC; the production integration below is browser-direct STT.
+
 ### ElevenLabs STT (Browser-Side)
 
 **Flow:**
