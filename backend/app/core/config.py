@@ -22,6 +22,10 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices('SUPABASE_PUBLISHABLE_KEY', 'SUPABASE_ANON_KEY'),
     )
+    supabase_service_role_key: Optional[str] = Field(
+        default=None,
+        validation_alias='SUPABASE_SERVICE_ROLE_KEY',
+    )
     frontend_origin: str = Field(
         default='http://localhost:5173',
         validation_alias='FRONTEND_ORIGIN',

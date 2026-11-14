@@ -18,11 +18,12 @@ class SupabaseAPIError(Exception):
 
 
 class SupabaseService:
-    """Forward database calls with one user's JWT and the publishable key."""
+    """Forward database calls with a scoped user or service-role credential."""
 
-    def __init__(self, settings: Settings, access_token: str) -> None:
+    def __init__(self, settings: Settings, access_token: str, *, service_role: bool = False) -> None:
         self._settings = settings
         self._access_token = access_token
+        self._service_role = service_role
 
     @property
     def base_url(self) -> str:
@@ -31,7 +32,11 @@ class SupabaseService:
 
     def _headers(self, *, return_representation: bool = False) -> dict[str, str]:
         headers = {
-            'apikey': self._settings.supabase_publishable_key or '',
+            'apikey': (
+                self._settings.supabase_service_role_key
+                if self._service_role
+                else self._settings.supabase_publishable_key
+            ) or '',
             'Authorization': f'Bearer {self._access_token}',
             'Accept': 'application/json',
             'Content-Type': 'application/json',
@@ -48,13 +53,14 @@ class SupabaseService:
         params: Optional[Mapping[str, Any]] = None,
         json: Optional[dict[str, Any]] = None,
         return_representation: bool = False,
+        prefer: str | None = None,
     ) -> Any:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.request(
                     method,
                     f'{self.base_url}/{path.lstrip("/")}',
-                    headers=self._headers(return_representation=return_representation),
+                    headers=(self._headers(return_representation=return_representation) | ({'Prefer': prefer} if prefer else {})),
                     params=params,
                     json=json,
                 )
@@ -72,9 +78,25 @@ class SupabaseService:
     async def get(self, path: str, *, params: Optional[Mapping[str, Any]] = None) -> Any:
         return await self._request('GET', path, params=params)
 
+    async def post(self, path: str, data: dict[str, Any]) -> Any:
+        return await self._request(
+            'POST',
+            path,
+            json=data,
+            return_representation=True,
+        )
+
     async def patch(self, path: str, data: dict[str, Any]) -> Any:
         return await self._request(
             'PATCH',
+            path,
+            json=data,
+            return_representation=True,
+        )
+
+    async def upsert(self, path: str, data: dict[str, Any]) -> Any:
+        return await self._request(
+            'POST',
             path,
             json=data,
             return_representation=True,
@@ -88,3 +110,17 @@ async def get_supabase_service(
     """Create a service carrying only the current request's verified token."""
 
     return SupabaseService(settings, current_user.access_token)
+
+
+async def get_service_role_supabase(
+    settings: Settings = Depends(get_settings),
+) -> SupabaseService | None:
+    """Create an admin database service for server-owned writes only."""
+
+    if not settings.supabase_url or not settings.supabase_service_role_key:
+        return None
+    return SupabaseService(
+        settings,
+        settings.supabase_service_role_key,
+        service_role=True,
+    )
